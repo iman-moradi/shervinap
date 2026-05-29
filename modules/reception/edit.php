@@ -67,7 +67,6 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
         
         $db->commit();
         $success = "اطلاعات با موفقیت ویرایش شد.";
-        // reload
         $stmt = $db->prepare("SELECT r.*, c.id as customer_id, c.fullname, c.mobile, c.address 
                               FROM repair_tickets r JOIN customers c ON c.id = r.customer_id WHERE r.id = ?");
         $stmt->execute([$ticket_id]);
@@ -78,31 +77,61 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
     }
 }
 ?>
-<div class="card">
-    <div class="card-header">ویرایش پذیرش</div>
+
+<style>
+    .form-modern .form-control, .form-modern .form-select {
+        border-radius: 12px;
+        border: 1px solid #e2e8f0;
+        padding: 10px 15px;
+        width: 100%;
+        box-sizing: border-box;
+    }
+    .form-modern label {
+        font-weight: 500;
+        margin-bottom: 8px;
+        color: #334155;
+        display: block;
+    }
+    .row {
+        margin-left: 0;
+        margin-right: 0;
+    }
+    [class^="col-"] {
+        padding-left: 10px;
+        padding-right: 10px;
+    }
+</style>
+
+<div class="modern-card">
+    <div class="card-header-custom">
+        <i class="fas fa-edit"></i> ویرایش پذیرش
+    </div>
     <div class="card-body">
-        <?php if ($error): ?><div class="alert alert-danger"><?= $error ?></div><?php endif; ?>
-        <?php if ($success): ?><div class="alert alert-success"><?= $success ?></div><?php endif; ?>
-        <form method="post">
-            <h5>اطلاعات مشتری</h5>
+        <?php if ($error): ?><div class="alert alert-danger alert-glass"><?= htmlspecialchars($error) ?></div><?php endif; ?>
+        <?php if ($success): ?><div class="alert alert-success alert-glass"><?= htmlspecialchars($success) ?></div><?php endif; ?>
+        
+        <form method="post" class="form-modern">
+            <h5 class="mb-3">اطلاعات مشتری</h5>
             <div class="row">
-                <div class="col-md-4 mb-3"><label>نام کامل</label><input type="text" name="customer_fullname" class="form-control" value="<?= htmlspecialchars($ticket['fullname']) ?>" required></div>
-                <div class="col-md-4 mb-3"><label>موبایل</label><input type="text" name="customer_mobile" class="form-control" value="<?= htmlspecialchars($ticket['mobile']) ?>" required></div>
+                <div class="col-md-4 mb-3"><label>نام کامل *</label><input type="text" name="customer_fullname" class="form-control" value="<?= htmlspecialchars($ticket['fullname']) ?>" required></div>
+                <div class="col-md-4 mb-3"><label>موبایل *</label><input type="text" name="customer_mobile" class="form-control" value="<?= htmlspecialchars($ticket['mobile']) ?>" required></div>
                 <div class="col-md-4 mb-3"><label>آدرس</label><input type="text" name="customer_address" class="form-control" value="<?= htmlspecialchars($ticket['address']) ?>"></div>
             </div>
-            <h5>اطلاعات دستگاه</h5>
+            
+            <h5 class="mb-3 mt-3">اطلاعات دستگاه</h5>
             <div class="row">
-                <div class="col-md-3 mb-3"><label>نوع دستگاه</label><input type="text" name="device_type" class="form-control" value="<?= htmlspecialchars($ticket['device_type']) ?>" required></div>
+                <div class="col-md-3 mb-3"><label>نوع دستگاه *</label><input type="text" name="device_type" class="form-control" value="<?= htmlspecialchars($ticket['device_type']) ?>" required></div>
                 <div class="col-md-3 mb-3"><label>برند</label><input type="text" name="brand" class="form-control" value="<?= htmlspecialchars($ticket['brand']) ?>"></div>
                 <div class="col-md-3 mb-3"><label>مدل</label><input type="text" name="model" class="form-control" value="<?= htmlspecialchars($ticket['model']) ?>"></div>
                 <div class="col-md-3 mb-3"><label>شماره سریال</label><input type="text" name="serial_no" class="form-control" value="<?= htmlspecialchars($ticket['serial_no']) ?>"></div>
-                <div class="col-md-6 mb-3"><label>خرابی گزارش شده</label><textarea name="reported_fault" class="form-control" rows="2" required><?= htmlspecialchars($ticket['reported_fault']) ?></textarea></div>
+                <div class="col-md-6 mb-3"><label>خرابی گزارش شده *</label><textarea name="reported_fault" class="form-control" rows="2" required><?= htmlspecialchars($ticket['reported_fault']) ?></textarea></div>
                 <div class="col-md-6 mb-3"><label>قطعات همراه</label><textarea name="accompanying_parts" class="form-control" rows="2"><?= htmlspecialchars($ticket['accompanying_parts']) ?></textarea></div>
                 <div class="col-md-4 mb-3"><label>وضعیت ظاهری</label><input type="text" name="physical_condition" class="form-control" value="<?= htmlspecialchars($ticket['physical_condition']) ?>"></div>
                 <div class="col-md-4 mb-3"><label>بیعانه (تومان)</label><input type="number" name="deposit" class="form-control" value="<?= $ticket['deposit'] ?>"></div>
                 <div class="col-md-4 mb-3"><label>تاریخ پذیرش</label><input type="text" name="received_date_sh" class="form-control" required value="<?= htmlspecialchars($ticket['received_date_sh']) ?>"></div>
             </div>
-            <h5>اولویت و زمان تعمیر</h5>
+            
+            <h5 class="mb-3 mt-3">اولویت و زمان تعمیر</h5>
             <div class="row">
                 <div class="col-md-3 mb-3">
                     <label>اولویت</label>
@@ -120,11 +149,14 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
                     <input type="number" name="normal_days" class="form-control" value="<?= $ticket['normal_days'] ?: 3 ?>" min="1">
                 </div>
             </div>
-            <button type="submit" class="btn btn-primary">ذخیره تغییرات</button>
-            <a href="view.php?id=<?= $ticket_id ?>" class="btn btn-secondary">بازگشت</a>
+            <div class="mt-4 d-flex gap-2">
+                <button type="submit" class="btn btn-modern"><i class="fas fa-save"></i> ذخیره تغییرات</button>
+                <a href="view.php?id=<?= $ticket_id ?>" class="btn btn-secondary"><i class="fas fa-arrow-left"></i> بازگشت</a>
+            </div>
         </form>
     </div>
 </div>
+
 <script>
 document.getElementById('priority').addEventListener('change', function(){
     if(this.value === 'urgent'){

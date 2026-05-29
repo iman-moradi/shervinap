@@ -32,19 +32,15 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
     
     $db->beginTransaction();
     try {
-        // اگر مشتری جدید وارد شده (با استفاده از انتخاب از لیست یا ایجاد جدید)
         if ($customer_id) {
-            // از مشتری موجود استفاده کن
             $customer = $db->prepare("SELECT id, fullname, mobile, address FROM customers WHERE id = ?");
             $customer->execute([$customer_id]);
             $cust = $customer->fetch();
             if (!$cust) throw new Exception('مشتری نامعتبر');
             $customer_id = $cust['id'];
-            // به‌روزرسانی اطلاعات اگر تغییر کرده باشد (اختیاری)
             $update = $db->prepare("UPDATE customers SET fullname = ?, address = ? WHERE id = ?");
             $update->execute([$customer_fullname, $customer_address, $customer_id]);
         } else {
-            // مشتری جدید ایجاد کن
             $stmt = $db->prepare("INSERT INTO customers (fullname, mobile, address) VALUES (?, ?, ?)");
             $stmt->execute([$customer_fullname, $customer_mobile, $customer_address]);
             $customer_id = $db->lastInsertId();
@@ -71,37 +67,62 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
         $error = "خطا در ثبت: " . $e->getMessage();
     }
 }
-
-// دریافت دسته‌بندی‌ها برای نمایش (اگر لازم دارید)
 ?>
+
 <style>
     .suggestions-box {
         position: absolute;
         z-index: 1000;
         background: white;
-        border: 1px solid #ccc;
-        border-top: none;
+        border: 1px solid #e2e8f0;
+        border-radius: 12px;
         width: 100%;
         max-height: 200px;
         overflow-y: auto;
         display: none;
+        box-shadow: 0 4px 12px rgba(0,0,0,0.1);
     }
     .suggestion-item {
         padding: 8px 12px;
         cursor: pointer;
-        border-bottom: 1px solid #eee;
+        transition: background 0.2s;
     }
     .suggestion-item:hover {
-        background-color: #f0f0f0;
+        background-color: #f1f5f9;
+    }
+    .form-modern .form-control, .form-modern .form-select {
+        border-radius: 12px;
+        border: 1px solid #e2e8f0;
+        padding: 10px 15px;
+        width: 100%;
+        box-sizing: border-box;
+    }
+    .form-modern label {
+        font-weight: 500;
+        margin-bottom: 8px;
+        color: #334155;
+        display: block;
+    }
+    .row {
+        margin-left: 0;
+        margin-right: 0;
+    }
+    [class^="col-"] {
+        padding-left: 10px;
+        padding-right: 10px;
     }
 </style>
-<div class="card">
-    <div class="card-header">فرم پذیرش دستگاه</div>
+
+<div class="modern-card">
+    <div class="card-header-custom">
+        <i class="fas fa-clipboard-list"></i> فرم پذیرش دستگاه
+    </div>
     <div class="card-body">
-        <?php if ($error): ?><div class="alert alert-danger"><?= $error ?></div><?php endif; ?>
-        <?php if ($success): ?><div class="alert alert-success"><?= $success ?></div><?php endif; ?>
-        <form method="post" id="receptionForm">
-            <h5>اطلاعات مشتری</h5>
+        <?php if ($error): ?><div class="alert alert-danger alert-glass"><?= htmlspecialchars($error) ?></div><?php endif; ?>
+        <?php if ($success): ?><div class="alert alert-success alert-glass"><?= htmlspecialchars($success) ?></div><?php endif; ?>
+        
+        <form method="post" id="receptionForm" class="form-modern">
+            <h5 class="mb-3"><i class="fas fa-user"></i> اطلاعات مشتری</h5>
             <div class="row">
                 <div class="col-md-4 mb-3 position-relative">
                     <label>موبایل *</label>
@@ -119,19 +140,21 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
                     <input type="text" name="customer_address" id="customerAddress" class="form-control">
                 </div>
             </div>
-            <h5>اطلاعات دستگاه</h5>
+
+            <h5 class="mb-3 mt-3"><i class="fas fa-microchip"></i> اطلاعات دستگاه</h5>
             <div class="row">
-                <div class="col-md-3 mb-3"><label>نوع دستگاه</label><input type="text" name="device_type" class="form-control" required placeholder="ماشین لباسشویی"></div>
-                <div class="col-md-3 mb-3"><label>برند</label><input type="text" name="brand" class="form-control" required></div>
+                <div class="col-md-3 mb-3"><label>نوع دستگاه *</label><input type="text" name="device_type" class="form-control" required placeholder="ماشین لباسشویی"></div>
+                <div class="col-md-3 mb-3"><label>برند *</label><input type="text" name="brand" class="form-control" required></div>
                 <div class="col-md-3 mb-3"><label>مدل</label><input type="text" name="model" class="form-control"></div>
                 <div class="col-md-3 mb-3"><label>شماره سریال</label><input type="text" name="serial_no" class="form-control"></div>
-                <div class="col-md-6 mb-3"><label>خرابی گزارش شده</label><textarea name="reported_fault" class="form-control" rows="2" required></textarea></div>
+                <div class="col-md-6 mb-3"><label>خرابی گزارش شده *</label><textarea name="reported_fault" class="form-control" rows="2" required></textarea></div>
                 <div class="col-md-6 mb-3"><label>قطعات همراه (توسط مشتری)</label><textarea name="accompanying_parts" class="form-control" rows="2"></textarea></div>
                 <div class="col-md-4 mb-3"><label>وضعیت ظاهری</label><input type="text" name="physical_condition" class="form-control" placeholder="خش، خط و خش، سالم"></div>
                 <div class="col-md-4 mb-3"><label>بیعانه (تومان)</label><input type="number" name="deposit" class="form-control" value="0"></div>
                 <div class="col-md-4 mb-3"><label>تاریخ پذیرش (مثال 1402/10/15)</label><input type="text" name="received_date_sh" class="form-control" required value="<?= now_jalali() ?>"></div>
             </div>
-            <h5>اولویت و زمان تعمیر</h5>
+
+            <h5 class="mb-3 mt-3"><i class="fas fa-clock"></i> اولویت و زمان تعمیر</h5>
             <div class="row">
                 <div class="col-md-3 mb-3">
                     <label>اولویت</label>
@@ -149,8 +172,10 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
                     <input type="number" name="normal_days" class="form-control" value="3" min="1">
                 </div>
             </div>
-            <button type="submit" class="btn btn-primary">ثبت پذیرش</button>
-            <a href="index.php" class="btn btn-secondary">بازگشت</a>
+            <div class="mt-4 d-flex gap-2">
+                <button type="submit" class="btn btn-modern"><i class="fas fa-save"></i> ثبت پذیرش</button>
+                <a href="index.php" class="btn btn-secondary"><i class="fas fa-times"></i> بازگشت</a>
+            </div>
         </form>
     </div>
 </div>
@@ -208,12 +233,9 @@ $(document).ready(function(){
         }
     });
     
-    // اگر کاربر موبایل را دستی وارد کرد و از لیست انتخاب نکرد، باید مشتری جدید ایجاد شود
     $('#receptionForm').on('submit', function() {
         var customerId = $('#customerId').val();
         if (!customerId) {
-            // مشتری جدید است، مقدار customer_id خالی می‌ماند تا در سرور ایجاد شود
-            // اطمینان از پر بودن نام و موبایل
             if ($('#customerFullname').val().trim() === '' || $('#customerMobile').val().trim() === '') {
                 alert('لطفاً نام کامل و موبایل مشتری را وارد کنید.');
                 return false;
@@ -232,7 +254,6 @@ $(document).ready(function(){
         });
     }
     
-    // نمایش/عدم نمایش فیلدهای اولویت
     $('#priority').on('change', function() {
         if ($(this).val() === 'urgent') {
             $('#urgentDiv').show();

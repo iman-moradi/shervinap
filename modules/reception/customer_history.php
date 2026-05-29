@@ -8,13 +8,41 @@ if (!has_permission($_SESSION['user_id'], 'reception_access')) {
     exit;
 }
 ?>
-<div class="card">
-    <div class="card-header">
-        <h5>جستجوی تاریخچه مشتری</h5>
-        <input type="text" id="searchMobile" class="form-control" placeholder="شماره موبایل مشتری را وارد کنید..." autocomplete="off">
-        <div id="searchStatus" class="small text-muted mt-1"></div>
+
+<style>
+    .search-box {
+        position: relative;
+        max-width: 400px;
+    }
+    .search-box i {
+        position: absolute;
+        right: 12px;
+        top: 12px;
+        color: #94a3b8;
+        z-index: 2;
+    }
+    .search-box input {
+        border-radius: 30px;
+        padding-right: 35px;
+    }
+    .history-card {
+        transition: transform 0.2s;
+    }
+    .history-card:hover {
+        transform: translateY(-2px);
+    }
+</style>
+
+<div class="modern-card">
+    <div class="card-header-custom">
+        <i class="fas fa-history"></i> جستجوی تاریخچه مشتری
     </div>
     <div class="card-body">
+        <div class="search-box mb-4">
+            <i class="fas fa-search"></i>
+            <input type="text" id="searchMobile" class="form-control" placeholder="شماره موبایل مشتری را وارد کنید...">
+            <div id="searchStatus" class="small text-muted mt-1"></div>
+        </div>
         <div id="loading" style="display:none;" class="alert alert-info">در حال جستجو...</div>
         <div id="historyResult"></div>
     </div>
@@ -50,31 +78,31 @@ $(document).ready(function(){
             success: function(data) {
                 loading.hide();
                 if (data.length === 0) {
-                    historyResult.html('<div class="alert alert-warning">هیچ مشتری با این شماره یافت نشد</div>');
+                    historyResult.html('<div class="alert alert-warning alert-glass">هیچ مشتری با این شماره یافت نشد</div>');
                     return;
                 }
                 var html = '';
                 for (var i = 0; i < data.length; i++) {
                     var cust = data[i];
-                    html += '<div class="card mb-3">';
-                    html += '<div class="card-header bg-info text-white"><strong>' + escapeHtml(cust.fullname) + '</strong> - ' + escapeHtml(cust.mobile) + '</div>';
+                    html += '<div class="modern-card history-card mb-3">';
+                    html += '<div class="card-header-custom"><strong>' + escapeHtml(cust.fullname) + '</strong> - ' + escapeHtml(cust.mobile) + '</div>';
                     html += '<div class="card-body">';
                     if (cust.tickets.length === 0) {
                         html += '<p>هیچ دستگاه ثبت شده‌ای برای این مشتری وجود ندارد.</p>';
                     } else {
-                        html += '<table class="table table-sm table-bordered"><thead><tr><th>شماره پذیرش</th><th>دستگاه</th><th>تاریخ پذیرش</th><th>وضعیت</th><th>هزینه</th><th>عملیات</th></tr></thead><tbody>';
+                        html += '<div class="table-responsive"><table class="table table-sm table-hover"><thead><tr><th>شماره پذیرش</th><th>دستگاه</th><th>تاریخ پذیرش</th><th>وضعیت</th><th>هزینه</th><th>عملیات</th></tr></thead><tbody>';
                         for (var j = 0; j < cust.tickets.length; j++) {
                             var t = cust.tickets[j];
                             html += '<tr>';
-                            html += '<td>' + escapeHtml(t.ticket_no) + '</td>';
+                            html += '<td><strong>' + escapeHtml(t.ticket_no) + '</strong></td>';
                             html += '<td>' + escapeHtml(t.device_type) + '</td>';
                             html += '<td>' + escapeHtml(t.received_date_sh) + '</td>';
                             html += '<td>' + escapeHtml(t.status) + '</td>';
                             html += '<td>' + formatToman(t.total_cost) + '</td>';
-                            html += '<td><a href="view.php?id=' + t.id + '" class="btn btn-sm btn-info">مشاهده</a></td>';
+                            html += '<td><a href="view.php?id=' + t.id + '" class="btn btn-sm btn-outline-info"><i class="fas fa-eye"></i> مشاهده</a></td>';
                             html += '</tr>';
                         }
-                        html += '</tbody></table>';
+                        html += '</tbody></table></div>';
                     }
                     html += '</div></div>';
                 }
