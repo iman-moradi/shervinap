@@ -1,6 +1,7 @@
 ﻿<?php
 $page_title = 'ویرایش پذیرش دستگاه';
 require_once '../../includes/header.php';
+require_once '../../includes/date_helper.php';
 
 if (!has_permission($_SESSION['user_id'], 'reception_access')) {
     echo '<div class="alert alert-danger">دسترسی ندارید.</div>';
@@ -46,34 +47,38 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
     $normal_days = ($priority == 'normal') ? (int)$_POST['normal_days'] : null;
     $received_date_sh = $_POST['received_date_sh'];
     
-    $db->beginTransaction();
-    try {
-        $upd = $db->prepare("UPDATE customers SET fullname = ?, address = ? WHERE id = ?");
-        $upd->execute([$customer_fullname, $customer_address, $ticket['customer_id']]);
-        
-        $sql = "UPDATE repair_tickets SET 
-                    device_type = ?, brand = ?, model = ?, serial_no = ?, 
-                    reported_fault = ?, accompanying_parts = ?, physical_condition = ?, 
-                    deposit = ?, priority = ?, urgent_deadline_sh = ?, normal_days = ?, 
-                    received_date_sh = ?
-                WHERE id = ?";
-        $stmt = $db->prepare($sql);
-        $stmt->execute([
-            $device_type, $brand, $model, $serial_no,
-            $reported_fault, $accompanying_parts, $physical_condition,
-            $deposit, $priority, $urgent_deadline_sh, $normal_days,
-            $received_date_sh, $ticket_id
-        ]);
-        
-        $db->commit();
-        $success = "اطلاعات با موفقیت ویرایش شد.";
-        $stmt = $db->prepare("SELECT r.*, c.id as customer_id, c.fullname, c.mobile, c.address 
-                              FROM repair_tickets r JOIN customers c ON c.id = r.customer_id WHERE r.id = ?");
-        $stmt->execute([$ticket_id]);
-        $ticket = $stmt->fetch();
-    } catch (Exception $e) {
-        $db->rollBack();
-        $error = "خطا در ویرایش: " . $e->getMessage();
+    if (empty($received_date_sh)) {
+            $error = "تاریخ پذیرش باید پر شود";
+    } else {
+        $db->beginTransaction();
+        try {
+            $upd = $db->prepare("UPDATE customers SET fullname = ?, address = ? WHERE id = ?");
+            $upd->execute([$customer_fullname, $customer_address, $ticket['customer_id']]);
+            
+            $sql = "UPDATE repair_tickets SET 
+                        device_type = ?, brand = ?, model = ?, serial_no = ?, 
+                        reported_fault = ?, accompanying_parts = ?, physical_condition = ?, 
+                        deposit = ?, priority = ?, urgent_deadline_sh = ?, normal_days = ?, 
+                        received_date_sh = ?
+                    WHERE id = ?";
+            $stmt = $db->prepare($sql);
+            $stmt->execute([
+                $device_type, $brand, $model, $serial_no,
+                $reported_fault, $accompanying_parts, $physical_condition,
+                $deposit, $priority, $urgent_deadline_sh, $normal_days,
+                $received_date_sh, $ticket_id
+            ]);
+            
+            $db->commit();
+            $success = "اطلاعات با موفقیت ویرایش شد.";
+            $stmt = $db->prepare("SELECT r.*, c.id as customer_id, c.fullname, c.mobile, c.address 
+                                  FROM repair_tickets r JOIN customers c ON c.id = r.customer_id WHERE r.id = ?");
+            $stmt->execute([$ticket_id]);
+            $ticket = $stmt->fetch();
+        } catch (Exception $e) {
+            $db->rollBack();
+            $error = "خطا در ویرایش: " . $e->getMessage();
+        }
     }
 }
 ?>

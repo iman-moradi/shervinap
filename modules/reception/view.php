@@ -1,6 +1,8 @@
 ﻿<?php
+ob_start();
 $page_title = 'جزئیات تعمیر';
 require_once '../../includes/header.php';
+require_once '../../includes/date_helper.php';
 
 if (!has_permission($_SESSION['user_id'], 'reception_access')) {
     echo '<div class="alert alert-danger">دسترسی ندارید.</div>';
@@ -14,7 +16,6 @@ if (!$ticket_id) {
     exit;
 }
 
-// دریافت اطلاعات تیکت و مشتری
 $stmt = $db->prepare("SELECT r.*, c.fullname, c.mobile, c.address FROM repair_tickets r JOIN customers c ON c.id = r.customer_id WHERE r.id = ?");
 $stmt->execute([$ticket_id]);
 $ticket = $stmt->fetch();
@@ -24,7 +25,6 @@ if (!$ticket) {
     exit;
 }
 
-// ========== پردازش اضافه کردن اجرت یا قطعه ==========
 if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['add_item'])) {
     $item_type = $_POST['item_type'];
     $description = trim($_POST['description']);
@@ -60,7 +60,6 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['add_item'])) {
     }
 }
 
-// ========== حذف آیتم ==========
 if (isset($_GET['delete_item'])) {
     $item_id = (int)$_GET['delete_item'];
     $stmtItem = $db->prepare("SELECT * FROM repair_items WHERE id = ? AND ticket_id = ?");
@@ -77,7 +76,6 @@ if (isset($_GET['delete_item'])) {
     exit;
 }
 
-// دریافت لیست اقلام تعمیر
 $stmtItems = $db->prepare("SELECT * FROM repair_items WHERE ticket_id = ? ORDER BY id DESC");
 $stmtItems->execute([$ticket_id]);
 $items = $stmtItems->fetchAll();
@@ -99,6 +97,12 @@ $status_map = [
         background: #f8fafc;
         padding: 1rem;
         border-radius: 16px;
+    }
+    .modern-card .card-body {
+        padding: 1rem !important;
+    }
+    .mb-3 {
+        margin-bottom: 1.5rem !important;
     }
     .info-item {
         display: flex;
@@ -136,7 +140,6 @@ $status_map = [
 </style>
 
 <div class="row g-4">
-    <!-- اطلاعات پذیرش -->
     <div class="col-md-6">
         <div class="modern-card h-100">
             <div class="card-header-custom">
@@ -175,7 +178,6 @@ $status_map = [
         </div>
     </div>
 
-    <!-- افزودن اجرت یا قطعه -->
     <div class="col-md-6">
         <div class="modern-card h-100">
             <div class="card-header-custom">
@@ -213,7 +215,6 @@ $status_map = [
     </div>
 </div>
 
-<!-- لیست اقلام -->
 <div class="modern-card mt-4">
     <div class="card-header-custom">
         <i class="fas fa-list-ul"></i> لیست اجرت‌ها و قطعات مصرفی
@@ -347,4 +348,6 @@ $(document).ready(function(){
     }
 });
 </script>
-<?php require_once '../../includes/footer.php'; ?>
+<?php 
+ob_end_flush();
+require_once '../../includes/footer.php'; ?>

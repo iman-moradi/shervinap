@@ -1,6 +1,7 @@
 ﻿<?php
 $page_title = 'لیست دستگاه‌های آماده تحویل';
 require_once '../../includes/header.php';
+require_once '../../includes/date_helper.php';
 
 if (!has_permission($_SESSION['user_id'], 'reception_access')) {
     echo '<div class="alert alert-danger">دسترسی ندارید.</div>';
@@ -8,7 +9,6 @@ if (!has_permission($_SESSION['user_id'], 'reception_access')) {
     exit;
 }
 
-// دریافت همه تیکت‌های با وضعیت "آماده تحویل" یا "تحویل شده"
 $stmt = $db->prepare("
     SELECT r.*, c.fullname, c.mobile 
     FROM repair_tickets r 
@@ -19,7 +19,6 @@ $stmt = $db->prepare("
 $stmt->execute();
 $tickets = $stmt->fetchAll();
 
-// به‌روزرسانی مراحل پیگیری
 if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['update_followup'])) {
     $ticket_id = (int)$_POST['ticket_id'];
     $followup1 = $_POST['followup1'] ?? null;
@@ -50,6 +49,11 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['update_followup'])) {
         border-radius: 20px;
         font-weight: 500;
     }
+    .date-hint {
+        font-size: 0.75rem;
+        color: #6c757d;
+        display: block;
+    }
 </style>
 
 <div class="modern-card">
@@ -76,14 +80,14 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['update_followup'])) {
                         
                         $days_delay = 0;
                         if ($t['status'] == 'ready' && $ready_date) {
-                            $ready_ts = jalali_to_gregorian_timestamp($ready_date);
-                            $today_ts = time();
-                            $days_delay = floor(($today_ts - $ready_ts) / (60*60*24));
+                            $ready_ts = jalali_to_timestamp($ready_date);
+                            $today_ts = jalali_to_timestamp($today);
+                            $days_delay = floor(($today_ts - $ready_ts) / (60 * 60 * 24));
                             if ($days_delay < 0) $days_delay = 0;
                         } elseif ($t['status'] == 'delivered' && $ready_date && $delivered_date) {
-                            $ready_ts = jalali_to_gregorian_timestamp($ready_date);
-                            $delivered_ts = jalali_to_gregorian_timestamp($delivered_date);
-                            $days_delay = floor(($delivered_ts - $ready_ts) / (60*60*24));
+                            $ready_ts = jalali_to_timestamp($ready_date);
+                            $delivered_ts = jalali_to_timestamp($delivered_date);
+                            $days_delay = floor(($delivered_ts - $ready_ts) / (60 * 60 * 24));
                             if ($days_delay < 0) $days_delay = 0;
                         }
                         $penalty = $days_delay * 10000;
@@ -98,9 +102,9 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['update_followup'])) {
                             <td><?= $t['ready_date_sh'] ?: '-' ?></td>
                             <td><?= ($t['status'] == 'ready') ? '<span class="badge-status badge-ready">آماده تحویل</span>' : '<span class="badge-status badge-delivered">تحویل شده</span>' ?></td>
                             <td><?= $t['delivered_date_sh'] ?: '-' ?></td>
-                            <td><input type="text" name="followup1" class="form-control form-control-sm" value="<?= htmlspecialchars($t['followup1']) ?>" placeholder="تاریخ تماس اول"></td>
-                            <td><input type="text" name="followup2" class="form-control form-control-sm" value="<?= htmlspecialchars($t['followup2']) ?>" placeholder="تاریخ تماس دوم"></td>
-                            <td><input type="text" name="followup3" class="form-control form-control-sm" value="<?= htmlspecialchars($t['followup3']) ?>" placeholder="تاریخ تماس سوم"></td>
+                            <td><input type="text" name="followup1" class="form-control form-control-sm" value="<?= htmlspecialchars($t['followup1']) ?>" placeholder="1402/10/15" pattern="\d{4}/\d{1,2}/\d{1,2}" title="فرمت صحیح: 1402/10/15"></td>
+                            <td><input type="text" name="followup2" class="form-control form-control-sm" value="<?= htmlspecialchars($t['followup2']) ?>" placeholder="1402/10/15" pattern="\d{4}/\d{1,2}/\d{1,2}" title="فرمت صحیح: 1402/10/15"></td>
+                            <td><input type="text" name="followup3" class="form-control form-control-sm" value="<?= htmlspecialchars($t['followup3']) ?>" placeholder="1402/10/15" pattern="\d{4}/\d{1,2}/\d{1,2}" title="فرمت صحیح: 1402/10/15"></td>
                             <td class="text-center"><?= $days_delay > 0 ? '<span class="penalty-badge">'.$days_delay.' روز</span>' : '۰' ?></td>
                             <td class="text-center"><?= $penalty > 0 ? to_toman($penalty) : '۰' ?></td>
                             <td><button type="submit" name="update_followup" class="btn btn-sm btn-primary"><i class="fas fa-save"></i> ذخیره</button></td>
@@ -115,5 +119,21 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['update_followup'])) {
         </div>
     </div>
 </div>
+
+<script>
+// تبدیل خودکار - به / و اعتبارسنجی سمت کاربر
+document.querySelectorAll('input[name="followup1"], input[name="followup2"], input[name="followup3"]').forEach(function(input) {
+    input.addEventListener('input', function() {
+        this.value = this.value.replace(/-/g, '/');
+    });
+    input.addEventListener('blur', function() {
+        var val = this.value.trim();
+        if (val && !/^\d{4}\/\d{1,2}\/\d{1,2}$/.test(val)) {
+            alert('فرمت تاریخ باید مانند 1402/10/15 باشد');
+            this.value = '';
+        }
+    });
+});
+</script>
 
 <?php require_once '../../includes/footer.php'; ?>

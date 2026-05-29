@@ -1,6 +1,8 @@
 ﻿<?php
 $page_title = 'پذیرش دستگاه جدید';
 require_once '../../includes/header.php';
+require_once '../../includes/SMSManager.php';
+require_once '../../includes/date_helper.php'; // هماهنگ با purchase_invoice
 
 if (!has_permission($_SESSION['user_id'], 'reception_access')) {
     echo '<div class="alert alert-danger">دسترسی ندارید.</div>';
@@ -29,42 +31,76 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
     $normal_days = ($priority == 'normal') ? (int)$_POST['normal_days'] : null;
     $status = 'pending';
     $received_date_sh = $_POST['received_date_sh'];
-    
-    $db->beginTransaction();
-    try {
-        if ($customer_id) {
-            $customer = $db->prepare("SELECT id, fullname, mobile, address FROM customers WHERE id = ?");
-            $customer->execute([$customer_id]);
-            $cust = $customer->fetch();
-            if (!$cust) throw new Exception('مشتری نامعتبر');
-            $customer_id = $cust['id'];
-            $update = $db->prepare("UPDATE customers SET fullname = ?, address = ? WHERE id = ?");
-            $update->execute([$customer_fullname, $customer_address, $customer_id]);
-        } else {
-            $stmt = $db->prepare("INSERT INTO customers (fullname, mobile, address) VALUES (?, ?, ?)");
-            $stmt->execute([$customer_fullname, $customer_mobile, $customer_address]);
-            $customer_id = $db->lastInsertId();
+
+    // اعتبارسنجی تاریخ شمسی (همانند purchase_invoice)
+    if (empty($received_date_sh)) {
+        $error = "تاریخ پذیرش باید پر شود";
+    } else {
+        $db->beginTransaction();
+        try {
+            // مدیریت مشتری
+            if ($customer_id) {
+                $customer = $db->prepare("SELECT id, fullname, mobile, address FROM customers WHERE id = ?");
+                $customer->execute([$customer_id]);
+                $cust = $customer->fetch();
+                if (!$cust) throw new Exception('مشتری نامعتبر');
+                $customer_id = $cust['id'];
+                $update = $db->prepare("UPDATE customers SET fullname = ?, address = ? WHERE id = ?");
+                $update->execute([$customer_fullname, $customer_address, $customer_id]);
+            } else {
+                $stmt = $db->prepare("INSERT INTO customers (fullname, mobile, address) VALUES (?, ?, ?)");
+                $stmt->execute([$customer_fullname, $customer_mobile, $customer_address]);
+                $customer_id = $db->lastInsertId();
+            }
+
+            // تولید شماره تیکت
+            $ticket_no = 'R-' . str_replace('/', '', $received_date_sh) . '-' . rand(100, 999);
+            $sql = "INSERT INTO repair_tickets 
+                    (ticket_no, customer_id, device_type, brand, model, serial_no, reported_fault, 
+                     accompanying_parts, physical_condition, deposit, priority, urgent_deadline_sh, 
+                     normal_days, status, received_date_sh, created_by, total_cost, paid_amount) 
+                    VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,0,0)";
+            $stmt = $db->prepare($sql);
+            $stmt->execute([
+                $ticket_no, $customer_id, $device_type, $brand, $model, $serial_no, $reported_fault,
+                $accompanying_parts, $physical_condition, $deposit, $priority, $urgent_deadline_sh,
+                $normal_days, $status, $received_date_sh, $_SESSION['user_id']
+            ]);
+            $ticket_id = $db->lastInsertId();
+            $db->commit();
+
+            // ارسال پیامک
+            $finalMobile = $customer_mobile;
+            if (empty($finalMobile) && $customer_id) {
+                $mStmt = $db->prepare("SELECT mobile FROM customers WHERE id = ?");
+                $mStmt->execute([$customer_id]);
+                $finalMobile = $mStmt->fetchColumn();
+            }
+            if (!empty($finalMobile)) {
+                $sms = new SMSManager($db);
+                if ($sms->isAvailable()) {
+                    $deviceInfo = "{$device_type} برند {$brand}";
+                    $faultInfo = mb_substr($reported_fault, 0, 100);
+                    $deadlineText = '';
+                    if ($priority == 'urgent' && !empty($urgent_deadline_sh)) {
+                        $deadlineText = " - تحویل فوری تا تاریخ {$urgent_deadline_sh}";
+                    } elseif ($priority == 'normal' && !empty($normal_days)) {
+                        $deadlineText = " - زمان تقریبی تعمیر {$normal_days} روز کاری";
+                    }
+                    $message = "خدمات فنی شروین: دستگاه {$deviceInfo} با عیب \"{$faultInfo}\" ثبت شد. شماره پیگیری: {$ticket_no}{$deadlineText}";
+                    $smsResult = $sms->send($finalMobile, $message);
+                    if (!$smsResult['success']) {
+                        error_log("خطا در ارسال پیامک پذیرش به {$finalMobile}: " . $smsResult['error']);
+                    }
+                }
+            }
+
+            $success = "پذیرش با موفقیت ثبت شد. شماره پیگیری: $ticket_no";
+            echo '<meta http-equiv="refresh" content="2;url=view.php?id='.$ticket_id.'">';
+        } catch (Exception $e) {
+            $db->rollBack();
+            $error = "خطا در ثبت: " . $e->getMessage();
         }
-        
-        $ticket_no = 'R-' . str_replace('/', '', $received_date_sh) . '-' . rand(100, 999);
-        $sql = "INSERT INTO repair_tickets 
-                (ticket_no, customer_id, device_type, brand, model, serial_no, reported_fault, 
-                 accompanying_parts, physical_condition, deposit, priority, urgent_deadline_sh, 
-                 normal_days, status, received_date_sh, created_by, total_cost, paid_amount) 
-                VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,0,0)";
-        $stmt = $db->prepare($sql);
-        $stmt->execute([
-            $ticket_no, $customer_id, $device_type, $brand, $model, $serial_no, $reported_fault,
-            $accompanying_parts, $physical_condition, $deposit, $priority, $urgent_deadline_sh,
-            $normal_days, $status, $received_date_sh, $_SESSION['user_id']
-        ]);
-        $ticket_id = $db->lastInsertId();
-        $db->commit();
-        $success = "پذیرش با موفقیت ثبت شد. شماره پیگیری: $ticket_no";
-        echo '<meta http-equiv="refresh" content="2;url=view.php?id='.$ticket_id.'">';
-    } catch (Exception $e) {
-        $db->rollBack();
-        $error = "خطا در ثبت: " . $e->getMessage();
     }
 }
 ?>
@@ -81,6 +117,9 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
         overflow-y: auto;
         display: none;
         box-shadow: 0 4px 12px rgba(0,0,0,0.1);
+    }
+    .modern-card .card-body {
+    padding: 2rem !important;
     }
     .suggestion-item {
         padding: 8px 12px;
@@ -151,7 +190,9 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
                 <div class="col-md-6 mb-3"><label>قطعات همراه (توسط مشتری)</label><textarea name="accompanying_parts" class="form-control" rows="2"></textarea></div>
                 <div class="col-md-4 mb-3"><label>وضعیت ظاهری</label><input type="text" name="physical_condition" class="form-control" placeholder="خش، خط و خش، سالم"></div>
                 <div class="col-md-4 mb-3"><label>بیعانه (تومان)</label><input type="number" name="deposit" class="form-control" value="0"></div>
-                <div class="col-md-4 mb-3"><label>تاریخ پذیرش (مثال 1402/10/15)</label><input type="text" name="received_date_sh" class="form-control" required value="<?= now_jalali() ?>"></div>
+                <div class="col-md-4 mb-3"><label>تاریخ پذیرش (مثال 1402/10/15)</label>
+                    <input type="text" name="received_date_sh" class="form-control" required value="<?= now_jalali() ?>">
+                </div>
             </div>
 
             <h5 class="mb-3 mt-3"><i class="fas fa-clock"></i> اولویت و زمان تعمیر</h5>

@@ -1,6 +1,7 @@
 ﻿<?php
 $page_title = 'تاریخچه دستگاه‌های مشتری';
 require_once '../../includes/header.php';
+require_once '../../includes/date_helper.php';
 
 if (!has_permission($_SESSION['user_id'], 'reception_access')) {
     echo '<div class="alert alert-danger">دسترسی ندارید.</div>';
@@ -93,7 +94,7 @@ $(document).ready(function(){
                         html += '<div class="table-responsive"><table class="table table-sm table-hover"><thead><tr><th>شماره پذیرش</th><th>دستگاه</th><th>تاریخ پذیرش</th><th>وضعیت</th><th>هزینه</th><th>عملیات</th></tr></thead><tbody>';
                         for (var j = 0; j < cust.tickets.length; j++) {
                             var t = cust.tickets[j];
-                            html += '<tr>';
+                            html += '</tr>';
                             html += '<td><strong>' + escapeHtml(t.ticket_no) + '</strong></td>';
                             html += '<td>' + escapeHtml(t.device_type) + '</td>';
                             html += '<td>' + escapeHtml(t.received_date_sh) + '</td>';
@@ -102,7 +103,7 @@ $(document).ready(function(){
                             html += '<td><a href="view.php?id=' + t.id + '" class="btn btn-sm btn-outline-info"><i class="fas fa-eye"></i> مشاهده</a></td>';
                             html += '</tr>';
                         }
-                        html += '</tbody></table></div>';
+                        html += '</tbody></td></div>';
                     }
                     html += '</div></div>';
                 }
