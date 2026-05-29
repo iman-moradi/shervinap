@@ -44,6 +44,49 @@ function has_permission($user_id, $permission_key) {
 }
 
 
+
+
+
+/**
+ * دریافت مجموع اجرت تعمیرات برای یک تاریخ مشخص (از جدول repair_items)
+ * @param PDO $db
+ * @param string $date_sh تاریخ شمسی (فرمت Y/m/d)
+ * @return int
+ */
+function get_daily_labor_cost($db, $date_sh) {
+    $stmt = $db->prepare("
+        SELECT COALESCE(SUM(ri.total_price), 0)
+        FROM repair_items ri
+        JOIN repair_tickets rt ON rt.id = ri.ticket_id
+        WHERE ri.item_type = 'labor' AND rt.received_date_sh = ?
+    ");
+    $stmt->execute([$date_sh]);
+    return (int)$stmt->fetchColumn();
+}
+
+/**
+ * دریافت سود فروش برای یک تاریخ مشخص (بر اساس purchase_price محصولات)
+ * @param PDO $db
+ * @param string $date_sh تاریخ شمسی (فرمت Y/m/d)
+ * @return int
+ */
+function get_daily_sales_profit($db, $date_sh) {
+    $stmt = $db->prepare("
+        SELECT COALESCE(SUM(si.quantity * (si.unit_price - p.purchase_price)), 0)
+        FROM sales_items si
+        JOIN products p ON p.id = si.product_id
+        JOIN sales_invoices si_inv ON si_inv.id = si.sales_invoice_id
+        WHERE si_inv.invoice_date_sh = ?
+    ");
+    $stmt->execute([$date_sh]);
+    return (int)$stmt->fetchColumn();
+}
+
+
+
+
+
+
 function get_unpaid_purchase_invoices_count($db) {
     $stmt = $db->prepare("SELECT COUNT(*) FROM purchase_invoices WHERE payment_status IN ('unpaid', 'partial')");
     $stmt->execute();

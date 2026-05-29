@@ -14,6 +14,16 @@ $user_fullname = $_SESSION['fullname'] ?? 'کاربر';
 
 load_appearance_settings();
 
+// تابع کمکی برای تشخیص صفحه فعال
+function is_active($url) {
+    $current_url = $_SERVER['REQUEST_URI'];
+    // اگر آدرس دقیق مطابقت داشت
+    if (strpos($current_url, $url) !== false) {
+        return 'active';
+    }
+    return '';
+}
+
 // ساختار منوهای گروه‌بندی شده
 $menu_groups = [
     'dashboard' => [
@@ -57,7 +67,7 @@ $menu_groups = [
     'financial' => [
         'type' => 'group',
         'title' => '💰 مالی و اعتبارات',
-        'permission' => 'transfers_manage', // مجوز پایه برای نمایش گروه
+        'permission' => 'transfers_manage',
         'icon' => 'fas fa-money-bill-wave',
         'items' => []
     ],
@@ -126,88 +136,206 @@ if (empty($menu_groups['financial']['items'])) {
     <link rel="stylesheet" href="<?= BASE_URL ?>assets/css/bootstrap.rtl.min.css">
     <link rel="stylesheet" href="<?= BASE_URL ?>assets/css/all.min.css">
     <link rel="stylesheet" href="<?= BASE_URL ?>assets/css/theme.css">
+    <!-- فونت وزیرمتن (اختیاری اما زیبا) -->
+    <link href="https://cdn.jsdelivr.net/gh/rastikerdar/vazirmatn@v33.003/Vazirmatn-font-face.css" rel="stylesheet" type="text/css" />
     <script src="<?= BASE_URL ?>assets/js/jquery-3.6.0.min.js"></script>
     <script src="<?= BASE_URL ?>assets/js/bootstrap.bundle.min.js"></script>
     <style>
         :root {
-            --sidebar-bg: linear-gradient(135deg, #1e2a3a 0%, #0f172a 100%);
-            --sidebar-hover: rgba(255,255,255,0.1);
-            --sidebar-active: #0ea5e9;
+            --sidebar-bg: rgba(30, 41, 59, 0.95);
+            --glass-bg: rgba(255, 255, 255, 0.1);
+            --glass-border: rgba(255, 255, 255, 0.2);
+            --primary-color: #0ea5e9;
+            --primary-dark: #0284c7;
+            --text-light: #f1f5f9;
+            --text-dim: #cbd5e1;
+            --hover-bg: rgba(255, 255, 255, 0.15);
+            --transition-smooth: all 0.3s ease-in-out;
+            --card-bg: rgba(255, 255, 255, 0.9);
+            --card-shadow: 0 20px 35px -15px rgba(0, 0, 0, 0.1);
+            --border-radius-lg: 20px;
+            --border-radius-md: 12px;
         }
+
+        body {
+            font-family: 'Vazirmatn', 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
+            background: linear-gradient(135deg, #e2e8f0 0%, #f8fafc 100%);
+            min-height: 100vh;
+            direction: rtl;
+        }
+
+        /* استایل مدرن سایدبار (افکت شیشه‌ای) */
         .sidebar {
             min-height: 100vh;
             background: var(--sidebar-bg);
-            color: #e2e8f0;
-            box-shadow: 4px 0 15px rgba(0,0,0,0.1);
+            backdrop-filter: blur(10px);
+            border-left: 1px solid var(--glass-border);
+            box-shadow: 4px 0 20px rgba(0, 0, 0, 0.1);
+            transition: var(--transition-smooth);
         }
-        .sidebar .nav-link {
-            color: #cbd5e1;
-            padding: 12px 16px;
-            border-radius: 8px;
-            margin: 4px 8px;
-            transition: all 0.2s;
+
+        .navbar-brand-custom {
+            font-size: 1.5rem;
+            font-weight: 800;
+            padding: 20px;
+            text-align: center;
+            border-bottom: 1px solid var(--glass-border);
+            margin-bottom: 20px;
+            color: white;
+            letter-spacing: 1px;
+            background: linear-gradient(135deg, #fff, #94a3b8);
+            -webkit-background-clip: text;
+            background-clip: text;
+            color: transparent;
+        }
+
+        .nav-link {
+            color: var(--text-dim) !important;
+            padding: 12px 20px !important;
+            border-radius: var(--border-radius-md) !important;
+            margin: 6px 12px;
+            transition: var(--transition-smooth);
             font-weight: 500;
+            display: flex;
+            align-items: center;
         }
-        .sidebar .nav-link:hover {
-            background: var(--sidebar-hover);
+
+        .nav-link i {
+            width: 28px;
+            font-size: 1.2rem;
+            margin-left: 12px;
+            text-align: center;
+        }
+
+        .nav-link:hover {
+            background: var(--hover-bg) !important;
+            color: white !important;
+            transform: translateX(5px);
+        }
+
+        .nav-link.active {
+            background: var(--primary-color) !important;
+            color: white !important;
+            box-shadow: 0 4px 10px rgba(14, 165, 233, 0.3);
+        }
+
+        .dropdown-toggle::after {
+            float: left;
+            margin-top: 8px;
+            transition: transform 0.3s ease;
+        }
+
+        .dropdown.show .dropdown-toggle::after {
+            transform: rotate(180deg);
+        }
+
+        .dropdown-menu {
+            background: rgba(30, 41, 59, 0.98);
+            backdrop-filter: blur(12px);
+            border: 1px solid var(--glass-border);
+            border-radius: var(--border-radius-md);
+            margin-right: 12px;
+            padding: 8px 0;
+            transition: var(--transition-smooth);
+        }
+
+        .dropdown-item {
+            color: var(--text-dim);
+            padding: 10px 24px;
+            border-radius: 8px;
+            margin: 2px 8px;
+            transition: var(--transition-smooth);
+        }
+
+        .dropdown-item:hover {
+            background: var(--hover-bg);
             color: white;
             transform: translateX(5px);
         }
-        .sidebar .nav-link.active {
-            background: var(--sidebar-active);
-            color: white;
-        }
-        .sidebar .nav-link i {
-            width: 24px;
-            margin-left: 8px;
-            text-align: center;
-        }
-        .sidebar .dropdown-toggle::after {
-            float: left;
-            margin-top: 8px;
-        }
-        .sidebar .dropdown-menu {
-            background: #1e293b;
-            border: none;
-            box-shadow: 0 5px 15px rgba(0,0,0,0.2);
-            margin-right: 8px;
-        }
-        .sidebar .dropdown-item {
-            color: #cbd5e1;
-            padding: 8px 20px;
-            border-radius: 6px;
-        }
-        .sidebar .dropdown-item:hover {
-            background: var(--sidebar-hover);
-            color: white;
-        }
-        .content {
-            background: #f1f5f9;
-            min-height: 100vh;
-            padding: 20px;
-        }
-        .card-header {
-            background: linear-gradient(135deg, #f8fafc 0%, #e2e8f0 100%);
-            border-bottom: 2px solid #0ea5e9;
-        }
-        .navbar-brand-custom {
-            font-size: 1.4rem;
-            font-weight: bold;
-            padding: 15px;
-            text-align: center;
-            border-bottom: 1px solid rgba(255,255,255,0.1);
-            margin-bottom: 15px;
-        }
+
         .user-info {
-            padding: 15px;
-            border-top: 1px solid rgba(255,255,255,0.1);
+            padding: 20px;
+            border-top: 1px solid var(--glass-border);
             margin-top: auto;
             font-size: 0.9rem;
+            color: var(--text-light);
+            text-align: center;
         }
+
         .sidebar-wrapper {
             display: flex;
             flex-direction: column;
             height: 100%;
+        }
+
+        /* استایل محتوای اصلی (با افکت شیشه‌ای) */
+        .content {
+            padding: 20px;
+            background: rgba(255, 255, 255, 0.4);
+            backdrop-filter: blur(5px);
+            min-height: 100vh;
+        }
+
+        /* کارت‌های مدرن */
+        .modern-card {
+            background: var(--card-bg);
+            backdrop-filter: blur(8px);
+            border-radius: var(--border-radius-lg);
+            border: none;
+            box-shadow: var(--card-shadow);
+            transition: transform 0.3s ease, box-shadow 0.3s ease;
+            overflow: hidden;
+            height: 100%;
+        }
+
+        .modern-card:hover {
+            transform: translateY(-5px);
+            box-shadow: 0 25px 40px -12px rgba(0, 0, 0, 0.2);
+        }
+
+        .card-header-custom {
+            background: rgba(255, 255, 255, 0.7);
+            border-bottom: 2px solid var(--primary-color);
+            padding: 15px 20px;
+            font-weight: bold;
+        }
+
+        /* دکمه‌ها */
+        .btn-modern {
+            background: var(--primary-color);
+            border: none;
+            padding: 8px 20px;
+            border-radius: 30px;
+            color: white;
+            transition: var(--transition-smooth);
+        }
+
+        .btn-modern:hover {
+            background: var(--primary-dark);
+            transform: scale(1.02);
+            box-shadow: 0 5px 15px rgba(14, 165, 233, 0.4);
+        }
+
+        /* هشدارهای زیبا */
+        .alert-glass {
+            background: rgba(255, 255, 255, 0.9);
+            backdrop-filter: blur(10px);
+            border-right: 5px solid;
+            border-radius: 15px;
+            box-shadow: 0 5px 15px rgba(0, 0, 0, 0.05);
+        }
+
+        /* اسکرول بار سفارشی */
+        ::-webkit-scrollbar {
+            width: 8px;
+        }
+        ::-webkit-scrollbar-track {
+            background: #f1f1f1;
+            border-radius: 10px;
+        }
+        ::-webkit-scrollbar-thumb {
+            background: var(--primary-color);
+            border-radius: 10px;
         }
     </style>
 </head>
@@ -226,19 +354,28 @@ if (empty($menu_groups['financial']['items'])) {
                         if (!has_permission($user_id, $menu['permission'])) continue;
                         
                         if ($menu['type'] == 'link') {
+                            $active_class = is_active($menu['url']);
                             echo '<li class="nav-item">';
-                            echo '<a class="nav-link" href="' . $menu['url'] . '">';
+                            echo '<a class="nav-link ' . $active_class . '" href="' . $menu['url'] . '">';
                             echo '<i class="' . $menu['icon'] . '"></i> ' . $menu['title'];
                             echo '</a>';
                             echo '</li>';
                         } elseif ($menu['type'] == 'group') {
+                            $is_open = false;
+                            foreach ($menu['items'] as $sub) {
+                                if (strpos($_SERVER['REQUEST_URI'], $sub['url']) !== false) {
+                                    $is_open = true;
+                                    break;
+                                }
+                            }
                             echo '<li class="nav-item dropdown">';
-                            echo '<a class="nav-link dropdown-toggle" href="#" id="dropdown' . $key . '" role="button" data-bs-toggle="dropdown" aria-expanded="false">';
+                            echo '<a class="nav-link dropdown-toggle ' . ($is_open ? 'show' : '') . '" href="#" id="dropdown' . $key . '" role="button" data-bs-toggle="dropdown" aria-expanded="' . ($is_open ? 'true' : 'false') . '">';
                             echo '<i class="' . $menu['icon'] . '"></i> ' . $menu['title'];
                             echo '</a>';
-                            echo '<ul class="dropdown-menu" aria-labelledby="dropdown' . $key . '">';
+                            echo '<ul class="dropdown-menu ' . ($is_open ? 'show' : '') . '" aria-labelledby="dropdown' . $key . '">';
                             foreach ($menu['items'] as $sub) {
-                                echo '<li><a class="dropdown-item" href="' . $sub['url'] . '">';
+                                $sub_active = is_active($sub['url']);
+                                echo '<li><a class="dropdown-item ' . $sub_active . '" href="' . $sub['url'] . '">';
                                 if (isset($sub['icon'])) echo '<i class="' . $sub['icon'] . ' me-2"></i> ';
                                 echo $sub['title'];
                                 echo '</a></li>';
@@ -261,10 +398,10 @@ if (empty($menu_groups['financial']['items'])) {
 
         <!-- Main content -->
         <main class="col-md-10 content">
-            <div class="d-flex justify-content-between flex-wrap flex-md-nowrap align-items-center pt-3 pb-2 mb-3 border-bottom">
-                <h1 class="h2"><?= $page_title ?? 'داشبورد' ?></h1>
-                <div class="text-muted">
-                    <i class="fas fa-calendar-alt"></i> <?= now_jalali() ?>
+            <div class="d-flex justify-content-between flex-wrap flex-md-nowrap align-items-center pt-3 pb-2 mb-4 border-bottom">
+                <h1 class="h2" style="color: #1e293b;"><?= $page_title ?? 'داشبورد' ?></h1>
+                <div class="text-muted bg-white p-2 px-3 rounded-pill shadow-sm">
+                    <i class="fas fa-calendar-alt text-primary"></i> <?= now_jalali() ?>
                 </div>
             </div>
 
@@ -275,7 +412,7 @@ if (empty($menu_groups['financial']['items'])) {
             if (function_exists('get_unpaid_purchase_invoices_count')) {
                 $unpaid_count = get_unpaid_purchase_invoices_count($db);
                 if ($unpaid_count > 0) {
-                    echo '<div class="alert alert-danger alert-dismissible fade show shadow-sm" role="alert">
+                    echo '<div class="alert alert-danger alert-glass alert-dismissible fade show shadow-sm" role="alert">
                             <i class="fas fa-exclamation-triangle"></i> <strong>توجه!</strong> ' . $unpaid_count . ' فاکتور خرید نسیه تسویه نشده وجود دارد. 
                             <a href="' . BASE_URL . 'modules/inventory/purchase_invoices.php?filter=unpaid" class="alert-link">مشاهده و تسویه</a>
                             <button type="button" class="btn-close" data-bs-dismiss="alert" aria-label="Close"></button>
@@ -287,13 +424,12 @@ if (empty($menu_groups['financial']['items'])) {
             if (has_permission($user_id, 'loans_manage')) {
                 $upcoming_loans = $db->query("SELECT * FROM loans WHERE status='active' AND remaining_amount > 0")->fetchAll();
                 foreach ($upcoming_loans as $l) {
-                    // محاسبه تاریخ قسط بعدی (ساده شده: هر ماه یک قسط)
                     $start_timestamp = jalali_to_gregorian_timestamp($l['start_date_sh']);
                     $next_date_timestamp = strtotime("+" . $l['paid_installments'] . " months", $start_timestamp);
                     $next_date = jdate('Y/m/d', $next_date_timestamp);
                     $days_left = ($next_date_timestamp - time()) / (60*60*24);
                     if ($days_left <= 7 && $days_left >= 0 && (!$l['last_reminder_date'] || strtotime($l['last_reminder_date']) < strtotime('-1 day'))) {
-                        echo '<div class="alert alert-warning alert-dismissible fade show shadow-sm" role="alert">
+                        echo '<div class="alert alert-warning alert-glass alert-dismissible fade show shadow-sm" role="alert">
                                 <i class="fas fa-bell"></i> <strong>یادآوری وام</strong> قسط وام ' . htmlspecialchars($l['bank_name']) . ' در تاریخ ' . $next_date . ' سررسید می‌شود.
                                 <button type="button" class="btn-close" data-bs-dismiss="alert"></button>
                               </div>';
@@ -309,7 +445,7 @@ if (empty($menu_groups['financial']['items'])) {
                 foreach ($checks as $c) {
                     $type_label = ($c['type'] == 'issued') ? 'پرداختی' : 'دریافتی';
                     $alert_class = ($c['type'] == 'issued') ? 'danger' : 'warning';
-                    echo '<div class="alert alert-' . $alert_class . ' alert-dismissible fade show shadow-sm" role="alert">
+                    echo '<div class="alert alert-' . $alert_class . ' alert-glass alert-dismissible fade show shadow-sm" role="alert">
                             <i class="fas fa-money-check"></i> <strong>چک ' . $type_label . '</strong> به شماره ' . htmlspecialchars($c['check_number']) . ' از بانک ' . htmlspecialchars($c['bank_name']) . ' به مبلغ ' . number_format($c['amount']) . ' تومان در تاریخ ' . $c['due_date_sh'] . ' سررسید شده است.
                             <button type="button" class="btn-close" data-bs-dismiss="alert"></button>
                           </div>';
@@ -322,7 +458,7 @@ if (empty($menu_groups['financial']['items'])) {
                 $credit_sales = $db->query("SELECT cs.*, c.fullname as customer_name FROM credit_sales cs JOIN customers c ON c.id = cs.customer_id WHERE cs.status != 'paid' AND cs.due_date_sh <= '$today'")->fetchAll();
                 foreach ($credit_sales as $cs) {
                     $remaining = $cs['total_amount'] - $cs['paid_amount'];
-                    echo '<div class="alert alert-warning alert-dismissible fade show shadow-sm" role="alert">
+                    echo '<div class="alert alert-warning alert-glass alert-dismissible fade show shadow-sm" role="alert">
                             <i class="fas fa-credit-card"></i> <strong>فروش نسیه</strong> مشتری ' . htmlspecialchars($cs['customer_name']) . ' - فاکتور ' . htmlspecialchars($cs['invoice_no']) . ' به مبلغ باقیمانده ' . number_format($remaining) . ' تومان در تاریخ ' . $cs['due_date_sh'] . ' سررسید شده است.
                             <a href="' . BASE_URL . 'modules/financial/credit_sales.php" class="alert-link">مشاهده و تسویه</a>
                             <button type="button" class="btn-close" data-bs-dismiss="alert"></button>

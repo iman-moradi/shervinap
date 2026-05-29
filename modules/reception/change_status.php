@@ -34,9 +34,8 @@ $status_map = [
 if ($_SERVER['REQUEST_METHOD'] === 'POST') {
     $new_status = $_POST['status'];
     
-    // اگر وضعیت جدید "آماده تحویل" است و قبلاً نبود، تاریخ آماده‌سازی را ثبت کن
     if ($new_status == 'ready' && $ticket['status'] != 'ready') {
-        $ready_date = now_jalali(); // تاریخ شمسی جاری
+        $ready_date = now_jalali();
         $update = $db->prepare("UPDATE repair_tickets SET status = ?, ready_date_sh = ? WHERE id = ?");
         $update->execute([$new_status, $ready_date, $ticket_id]);
     } else {
@@ -51,12 +50,18 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
     exit;
 }
 ?>
-<div class="card">
-    <div class="card-header">تغییر وضعیت تعمیر</div>
+
+<div class="modern-card">
+    <div class="card-header-custom">
+        <i class="fas fa-exchange-alt"></i> تغییر وضعیت تعمیر
+    </div>
     <div class="card-body">
-        <p><strong>مشتری:</strong> <?= htmlspecialchars($ticket['fullname']) ?></p>
-        <p><strong>دستگاه:</strong> <?= htmlspecialchars($ticket['device_type']) ?></p>
-        <p><strong>وضعیت فعلی:</strong> <?= $status_map[$ticket['status']] ?></p>
+        <div class="info-grid mb-4">
+            <div class="info-item"><span class="info-label">مشتری:</span><span class="info-value"><?= htmlspecialchars($ticket['fullname']) ?></span></div>
+            <div class="info-item"><span class="info-label">دستگاه:</span><span class="info-value"><?= htmlspecialchars($ticket['device_type']) ?></span></div>
+            <div class="info-item"><span class="info-label">وضعیت فعلی:</span><span class="info-value"><span class="badge-status <?= match($ticket['status']){'pending'=>'badge-pending','in_progress'=>'badge-in_progress','waiting_part'=>'badge-waiting_part','ready'=>'badge-ready','delivered'=>'badge-delivered'} ?>"><?= $status_map[$ticket['status']] ?></span></span></div>
+        </div>
+        
         <form method="post">
             <div class="mb-3">
                 <label>وضعیت جدید:</label>
@@ -66,9 +71,35 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
                     <?php endforeach; ?>
                 </select>
             </div>
-            <button type="submit" class="btn btn-primary">ذخیره و ارسال پیامک</button>
-            <a href="view.php?id=<?= $ticket_id ?>" class="btn btn-secondary">بازگشت</a>
+            <div class="d-flex gap-2">
+                <button type="submit" class="btn btn-modern"><i class="fas fa-save"></i> ذخیره و ارسال پیامک</button>
+                <a href="view.php?id=<?= $ticket_id ?>" class="btn btn-secondary"><i class="fas fa-arrow-left"></i> بازگشت</a>
+            </div>
         </form>
     </div>
 </div>
+
+<style>
+    .info-grid {
+        display: grid;
+        grid-template-columns: repeat(auto-fill, minmax(200px, 1fr));
+        gap: 12px;
+        background: #f8fafc;
+        padding: 1rem;
+        border-radius: 16px;
+    }
+    .info-item {
+        display: flex;
+        justify-content: space-between;
+        border-bottom: 1px dashed #cbd5e1;
+        padding: 6px 0;
+    }
+    .info-label {
+        font-weight: 600;
+        color: #334155;
+    }
+    .info-value {
+        color: #1e293b;
+    }
+</style>
 <?php require_once '../../includes/footer.php'; ?>

@@ -9,12 +9,12 @@ if (!has_permission($_SESSION['user_id'], 'customers_manage')) {
 
 $id = (int)$_GET['id'];
 if ($id) {
-    // بررسی استفاده در جداول دیگر (اختیاری)
+    // بررسی استفاده در جداول دیگر
     $check = $db->prepare("SELECT COUNT(*) FROM repair_tickets WHERE customer_id = ?");
     $check->execute([$id]);
     if ($check->fetchColumn() > 0) {
-        echo '<div class="alert alert-danger">این شخص در تعمیرات استفاده شده است، قابل حذف نیست.</div>';
-        echo '<a href="index.php" class="btn btn-secondary">بازگشت</a>';
+        echo '<div class="alert alert-danger alert-glass">❌ این شخص در تعمیرات استفاده شده است، قابل حذف نیست.</div>';
+        echo '<a href="index.php" class="btn btn-modern mt-2">بازگشت به لیست</a>';
         require_once '../../includes/footer.php';
         exit;
     }
