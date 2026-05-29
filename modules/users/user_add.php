@@ -27,7 +27,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
         $stmt = $db->prepare("INSERT INTO users (username, password, fullname, mobile, email, is_active) VALUES (?,?,?,?,?,?)");
         if ($stmt->execute([$username, $password, $fullname, $mobile, $email, $is_active])) {
             $user_id = $db->lastInsertId();
-            // تنظیم مجوزها (از آرایه ارسالی)
+            // تنظیم مجوزها
             if (isset($_POST['permissions']) && is_array($_POST['permissions'])) {
                 foreach ($_POST['permissions'] as $perm_id) {
                     $ins = $db->prepare("INSERT INTO user_permissions (user_id, permission_id, granted) VALUES (?,?,1)");
@@ -35,6 +35,32 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
                 }
             }
             $success = 'کاربر با موفقیت اضافه شد.';
+            
+            // ========== شروع بخش اضافه شده برای ارسال پیامک ==========
+            // فقط در صورتی که شماره موبایل وارد شده باشد و وضعیت فعال باشد، پیامک ارسال کن
+            if (!empty($mobile) && $is_active == 1) {
+                // فراخوانی فایل کلاس SMSManager
+                require_once '../../includes/SMSManager.php';
+                
+                // ایجاد یک شی از کلاس SMSManager
+                $sms = new SMSManager($db);
+                
+                // بررسی اینکه آیا سرویس پیامک فعال است یا خیر
+                if ($sms->isAvailable()) {
+                    // متن پیام خوش‌آمدگویی برای کاربر
+                    $welcomeMessage = "{$fullname} عزیز، حساب کاربری شما با موفقیت در سیستم ایجاد شد.";
+                    // ارسال پیامک
+                    $smsResult = $sms->send($mobile, $welcomeMessage);
+                    
+                    // (اختیاری) در صورت بروز خطا، آن را لاگ کنید
+                    if (!$smsResult['success']) {
+                        error_log("خطا در ارسال پیامک خوش‌آمدگویی به {$mobile}: " . $smsResult['error']);
+                    }
+                }
+            }
+            // ========== پایان بخش اضافه شده ==========
+            
+            // ... (ادامه کدها، مانند ریدایرکت به لیست کاربران)
         } else {
             $error = 'خطا در درج کاربر.';
         }

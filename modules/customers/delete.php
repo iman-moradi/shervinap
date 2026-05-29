@@ -1,4 +1,5 @@
 ﻿<?php
+ob_start();
 require_once '../../includes/header.php';
 
 if (!has_permission($_SESSION['user_id'], 'customers_manage')) {
@@ -20,5 +21,6 @@ if ($id) {
     }
     $db->prepare("DELETE FROM customers WHERE id = ?")->execute([$id]);
 }
+ob_end_clean();
 header('Location: index.php');
 exit;
