@@ -33,29 +33,11 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
             $smsLogFile = __DIR__ . '/sms_debug.log'; // فایل لاگ در همان پوشه add.php
 
             if (!empty($mobile) && $is_active == 1) {
-                file_put_contents($smsLogFile, date('Y-m-d H:i:s') . " - شروع ارسال برای موبایل: $mobile\n", FILE_APPEND);
-                
-                if (file_exists('../../includes/SMSManager.php')) {
-                    require_once '../../includes/SMSManager.php';
-                    $sms = new SMSManager($db);
-                    
-                    if ($sms->isAvailable()) {
-                        $welcomeMessage = "{$fullname} گرامی، به خدمات فنی شروین خوش آمدید.";
-                        $smsResult = $sms->send($mobile, $welcomeMessage);
-                        
-                        if ($smsResult['success']) {
-                            file_put_contents($smsLogFile, date('Y-m-d H:i:s') . " - موفق: message_id = " . ($smsResult['message_id'] ?? 'ندارد') . "\n", FILE_APPEND);
-                        } else {
-                            file_put_contents($smsLogFile, date('Y-m-d H:i:s') . " - خطا: " . $smsResult['error'] . "\n", FILE_APPEND);
-                            if (!empty($smsResult['raw_response'])) {
-                                file_put_contents($smsLogFile, "پاسخ خام: " . $smsResult['raw_response'] . "\n", FILE_APPEND);
-                            }
-                        }
-                    } else {
-                        file_put_contents($smsLogFile, date('Y-m-d H:i:s') . " - سرویس پیامک در دسترس نیست (isAvailable=false)\n", FILE_APPEND);
-                    }
-                } else {
-                    file_put_contents($smsLogFile, date('Y-m-d H:i:s') . " - فایل SMSManager.php پیدا نشد\n", FILE_APPEND);
+                require_once '../../includes/SMSManager.php';
+                $sms = new SMSManager($db);
+                if ($sms->isAvailable()) {
+                    $welcomeMessage = "{$fullname} گرامی، به خدمات فنی شروین خوش آمدید.";
+                    $sms->send($mobile, $welcomeMessage, 'auto_welcome');
                 }
             } else {
                 file_put_contents($smsLogFile, date('Y-m-d H:i:s') . " - شرط ارسال برقرار نیست: mobile=" . ($mobile ?: 'خالی') . ", is_active=$is_active\n", FILE_APPEND);

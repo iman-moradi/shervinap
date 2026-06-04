@@ -144,12 +144,21 @@ $total_all = $total_customers + $total_suppliers + $total_partners;
                         <tr><td colspan="8" class="text-center text-muted py-4">هیچ شخصی یافت نشد.</td></tr>
                     <?php else: ?>
                         <?php foreach ($customers as $c): 
-                            $type_label = match($c['type']) {
-                                'customer' => 'مشتری',
-                                'supplier' => 'تأمین‌کننده',
-                                'partner' => 'همکار',
-                                default => $c['type']
-                            };
+                            // جایگزینی match expression با switch (برای PHP 7)
+                            $type_label = '';
+                            switch($c['type']) {
+                                case 'customer':
+                                    $type_label = 'مشتری';
+                                    break;
+                                case 'supplier':
+                                    $type_label = 'تأمین‌کننده';
+                                    break;
+                                case 'partner':
+                                    $type_label = 'همکار';
+                                    break;
+                                default:
+                                    $type_label = $c['type'];
+                            }
                             $active_icon = $c['is_active'] ? '<i class="fas fa-check-circle text-success"></i>' : '<i class="fas fa-times-circle text-danger"></i>';
                         ?>
                             <tr>
@@ -176,14 +185,14 @@ $total_all = $total_customers + $total_suppliers + $total_partners;
 <script>
 // جستجوی زنده با رفرش (با تاخیر 400 میلی‌ثانیه)
 $(document).ready(function(){
-    let timer;
+    var timer; // تغییر let به var برای PHP 7
     $('#liveSearch').on('keyup', function(){
         clearTimeout(timer);
-        timer = setTimeout(() => {
-            let query = $(this).val();
-            let currentType = '<?= $type_filter ?>';
+        timer = setTimeout(function() { // تغییر arrow function به function معمولی
+            var query = $(this).val(); // تغییر let به var
+            var currentType = '<?= $type_filter ?>';
             window.location.href = '?type=' + currentType + '&query=' + encodeURIComponent(query);
-        }, 400);
+        }.bind(this), 400); // bind برای حفظ context this
     });
 });
 </script>

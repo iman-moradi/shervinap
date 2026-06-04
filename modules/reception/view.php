@@ -87,6 +87,15 @@ $status_map = [
     'ready' => 'آماده تحویل',
     'delivered' => 'تحویل شده'
 ];
+// نقشه کلاس‌های بوت‌استرپ برای وضعیت‌ها (جایگزین match)
+$status_badge_class_map = [
+    'pending' => 'badge-pending',
+    'in_progress' => 'badge-in_progress',
+    'waiting_part' => 'badge-waiting_part',
+    'ready' => 'badge-ready',
+    'delivered' => 'badge-delivered'
+];
+$current_status_class = $status_badge_class_map[$ticket['status']] ?? '';
 ?>
 
 <style>
@@ -165,7 +174,7 @@ $status_map = [
                     <?php elseif ($ticket['priority'] == 'normal' && $ticket['normal_days']): ?>
                         <div class="info-item"><span class="info-label">زمان تعمیر (روز):</span><span class="info-value"><?= $ticket['normal_days'] ?> روز</span></div>
                     <?php endif; ?>
-                    <div class="info-item"><span class="info-label">وضعیت:</span><span class="info-value"><span class="badge-status <?= match($ticket['status']){'pending'=>'badge-pending','in_progress'=>'badge-in_progress','waiting_part'=>'badge-waiting_part','ready'=>'badge-ready','delivered'=>'badge-delivered'} ?>"><?= $status_map[$ticket['status']] ?? $ticket['status'] ?></span></span></div>
+                    <div class="info-item"><span class="info-label">وضعیت:</span><span class="info-value"><span class="badge-status <?= $current_status_class ?>"><?= $status_map[$ticket['status']] ?? $ticket['status'] ?></span></span></div>
                     <div class="info-item"><span class="info-label">جمع هزینه:</span><span class="info-value fw-bold"><?= to_toman($ticket['total_cost']) ?></span></div>
                     <div class="info-item"><span class="info-label">پرداختی:</span><span class="info-value"><?= to_toman($ticket['paid_amount']) ?></span></div>
                     <div class="info-item"><span class="info-label">تاریخ پذیرش:</span><span class="info-value"><?= htmlspecialchars($ticket['received_date_sh']) ?></span></div>

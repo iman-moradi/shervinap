@@ -8,7 +8,7 @@ if (!has_permission($_SESSION['user_id'], 'dashboard_view')) {
     exit;
 }
 
-// ==================== دریافت داده‌های آماری جدید ====================
+// ==================== دریافت داده‌های آماری ====================
 
 // 1. فروش 7 روز اخیر (مقادیر شمسی)
 $sales_data = [];
@@ -61,7 +61,6 @@ $stmt->execute();
 $low_stock = (int)$stmt->fetchColumn();
 
 // ** آمار جدید: اجرت روز و سود فروش روز **
-// --- محاسبه اجرت روز (جمع آیتم‌های labor از جدول repair_items برای تعمیرات امروز) ---
 $stmt_labor = $db->prepare("
     SELECT COALESCE(SUM(ri.total_price), 0)
     FROM repair_items ri
@@ -71,8 +70,6 @@ $stmt_labor = $db->prepare("
 $stmt_labor->execute([$today]);
 $daily_labor = (int)$stmt_labor->fetchColumn();
 
-// --- محاسبه سود فروش روز ---
-// فرمول: جمع (تعداد * (قیمت فروش - قیمت خرید محصول))
 $stmt_profit = $db->prepare("
     SELECT COALESCE(SUM(si.quantity * (si.unit_price - p.purchase_price)), 0)
     FROM sales_items si
@@ -83,7 +80,6 @@ $stmt_profit = $db->prepare("
 $stmt_profit->execute([$today]);
 $daily_profit = (int)$stmt_profit->fetchColumn();
 
-// --- منطق هشدار اجرت روز ---
 $labor_message = '';
 $labor_alert_class = '';
 if ($daily_labor >= 3000000) {
@@ -95,69 +91,117 @@ if ($daily_labor >= 3000000) {
 }
 ?>
 
+<style>
+    /* استایل‌های گرادیان مدرن برای کارت‌های آماری (بدون وابستگی خارجی) */
+    .bg-gradient-primary {
+        background: linear-gradient(135deg, #0ea5e9 0%, #3b82f6 100%) !important;
+    }
+    .bg-gradient-success {
+        background: linear-gradient(135deg, #10b981 0%, #22c55e 100%) !important;
+    }
+    .bg-gradient-warning {
+        background: linear-gradient(135deg, #f59e0b 0%, #f97316 100%) !important;
+    }
+    .bg-gradient-danger {
+        background: linear-gradient(135deg, #ef4444 0%, #dc2626 100%) !important;
+    }
+    /* دایره آیکون داخل کارت */
+    .bg-white-20 {
+        background-color: rgba(255, 255, 255, 0.2);
+        border-radius: 50%;
+        width: 55px;
+        height: 55px;
+        display: flex;
+        align-items: center;
+        justify-content: center;
+        transition: all 0.3s ease;
+    }
+    .modern-card:hover .bg-white-20 {
+        background-color: rgba(255, 255, 255, 0.3);
+        transform: scale(1.05);
+    }
+    /* رفع تداخل با استایل قبلی modern-card */
+    .modern-card.bg-gradient-primary,
+    .modern-card.bg-gradient-success,
+    .modern-card.bg-gradient-warning,
+    .modern-card.bg-gradient-danger {
+        backdrop-filter: none;
+        color: #fff !important;
+    }
+    .modern-card .text-white-50 {
+        color: rgba(255, 255, 255, 0.7) !important;
+    }
+    .progress {
+        background-color: rgba(0, 0, 0, 0.1);
+    }
+</style>
+
 <script src="<?= BASE_URL ?>assets/js/chart.umd.js"></script>
 
-<!-- نمایش هشدار اجرت روز در بالای صفحه به صورت برجسته -->
+<!-- هشدار اجرت روز -->
 <div class="alert <?= $labor_alert_class ?> alert-glass mb-4 text-center" role="alert" style="font-size: 1.1rem; font-weight: bold;">
     <i class="fas fa-chart-line"></i> اجرت امروز شما: <strong><?= number_format($daily_labor) ?> تومان</strong> | <?= $labor_message ?>
 </div>
 
 <div class="row">
-    <!-- کارت‌های آماری مدرن -->
+    <!-- کارت فروش امروز -->
     <div class="col-lg-3 col-md-6 mb-4">
-        <div class="modern-card text-white bg-gradient-primary h-100">
+        <div class="modern-card bg-gradient-primary text-white h-100">
             <div class="card-body">
                 <div class="d-flex justify-content-between align-items-center">
                     <div>
                         <h6 class="text-uppercase fw-semibold text-white-50">فروش امروز</h6>
                         <h3 class="display-6 fw-bold mb-0"><?= number_format($today_sales) ?> <small class="fs-6">تومان</small></h3>
                     </div>
-                    <div class="rounded-circle p-3 bg-white-20">
+                    <div class="bg-white-20">
                         <i class="fas fa-chart-line fa-2x text-white"></i>
                     </div>
                 </div>
             </div>
         </div>
     </div>
+    <!-- کارت تعمیرات امروز -->
     <div class="col-lg-3 col-md-6 mb-4">
-        <div class="modern-card text-white bg-gradient-success h-100">
+        <div class="modern-card bg-gradient-success text-white h-100">
             <div class="card-body">
                 <div class="d-flex justify-content-between align-items-center">
                     <div>
                         <h6 class="text-uppercase fw-semibold text-white-50">تعمیرات امروز</h6>
                         <h3 class="display-6 fw-bold mb-0"><?= number_format($today_repair) ?> <small class="fs-6">تومان</small></h3>
                     </div>
-                    <div class="rounded-circle p-3 bg-white-20">
+                    <div class="bg-white-20">
                         <i class="fas fa-tools fa-2x text-white"></i>
                     </div>
                 </div>
             </div>
         </div>
     </div>
+    <!-- کارت آماده تحویل -->
     <div class="col-lg-3 col-md-6 mb-4">
-        <div class="modern-card text-white bg-gradient-warning h-100">
+        <div class="modern-card bg-gradient-warning text-white h-100">
             <div class="card-body">
                 <div class="d-flex justify-content-between align-items-center">
                     <div>
                         <h6 class="text-uppercase fw-semibold text-white-50">آماده تحویل</h6>
                         <h3 class="display-6 fw-bold mb-0"><?= $ready_repairs ?> <small class="fs-6">دستگاه</small></h3>
                     </div>
-                    <div class="rounded-circle p-3 bg-white-20">
+                    <div class="bg-white-20">
                         <i class="fas fa-boxes fa-2x text-white"></i>
                     </div>
                 </div>
             </div>
         </div>
     </div>
+    <!-- کارت موجودی بحرانی -->
     <div class="col-lg-3 col-md-6 mb-4">
-        <div class="modern-card text-white bg-gradient-danger h-100">
+        <div class="modern-card bg-gradient-danger text-white h-100">
             <div class="card-body">
                 <div class="d-flex justify-content-between align-items-center">
                     <div>
                         <h6 class="text-uppercase fw-semibold text-white-50">موجودی بحرانی</h6>
                         <h3 class="display-6 fw-bold mb-0"><?= $low_stock ?> <small class="fs-6">قلم کالا</small></h3>
                     </div>
-                    <div class="rounded-circle p-3 bg-white-20">
+                    <div class="bg-white-20">
                         <i class="fas fa-exclamation-triangle fa-2x text-white"></i>
                     </div>
                 </div>
@@ -167,7 +211,7 @@ if ($daily_labor >= 3000000) {
 </div>
 
 <div class="row">
-    <!-- کارت‌های جدید: اجرت روز و سود فروش روز -->
+    <!-- کارت اجرت روز -->
     <div class="col-lg-6 mb-4">
         <div class="modern-card h-100">
             <div class="card-header-custom d-flex justify-content-between align-items-center">
@@ -184,6 +228,7 @@ if ($daily_labor >= 3000000) {
             </div>
         </div>
     </div>
+    <!-- کارت سود فروش روز -->
     <div class="col-lg-6 mb-4">
         <div class="modern-card h-100">
             <div class="card-header-custom d-flex justify-content-between align-items-center">
@@ -279,7 +324,7 @@ if ($daily_labor >= 3000000) {
 <script>
 document.addEventListener("DOMContentLoaded", function() {
     // نمودار فروش 7 روزه
-    const ctx1 = document.getElementById('salesChart').getContext('2d');
+    var ctx1 = document.getElementById('salesChart').getContext('2d');
     new Chart(ctx1, {
         type: 'line',
         data: {
@@ -304,39 +349,25 @@ document.addEventListener("DOMContentLoaded", function() {
                 tooltip: {
                     callbacks: {
                         label: function(context) {
-                            let val = context.raw;
+                            var val = context.raw;
                             return val.toLocaleString() + ' تومان';
                         }
                     }
                 },
-                legend: {
-                    position: 'top',
-                }
+                legend: { position: 'top' }
             },
             scales: {
                 y: {
-                    ticks: {
-                        callback: function(value) {
-                            return value.toLocaleString();
-                        }
-                    },
-                    title: {
-                        display: true,
-                        text: 'مبلغ (تومان)'
-                    }
+                    ticks: { callback: function(value) { return value.toLocaleString(); } },
+                    title: { display: true, text: 'مبلغ (تومان)' }
                 },
-                x: {
-                    title: {
-                        display: true,
-                        text: 'تاریخ'
-                    }
-                }
+                x: { title: { display: true, text: 'تاریخ' } }
             }
         }
     });
 
     // نمودار دایره‌ای وضعیت تعمیرات
-    const ctx2 = document.getElementById('statusChart').getContext('2d');
+    var ctx2 = document.getElementById('statusChart').getContext('2d');
     new Chart(ctx2, {
         type: 'pie',
         data: {
@@ -352,10 +383,7 @@ document.addEventListener("DOMContentLoaded", function() {
             responsive: true,
             maintainAspectRatio: true,
             plugins: {
-                legend: {
-                    position: 'bottom',
-                    labels: { font: { size: 12, family: 'Vazirmatn' } }
-                }
+                legend: { position: 'bottom', labels: { font: { size: 12, family: 'Vazirmatn' } } }
             }
         }
     });

@@ -88,7 +88,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
                         $deadlineText = " - زمان تقریبی تعمیر {$normal_days} روز کاری";
                     }
                     $message = "خدمات فنی شروین: دستگاه {$deviceInfo} با عیب \"{$faultInfo}\" ثبت شد. شماره پیگیری: {$ticket_no}{$deadlineText}";
-                    $smsResult = $sms->send($finalMobile, $message);
+                    $smsResult = $sms->send($finalMobile, $message, 'auto_welcome', $ticket_no);
                     if (!$smsResult['success']) {
                         error_log("خطا در ارسال پیامک پذیرش به {$finalMobile}: " . $smsResult['error']);
                     }

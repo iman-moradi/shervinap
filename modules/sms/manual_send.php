@@ -114,7 +114,12 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['submit_send'])) {
 }
 ?>
 <div class="card">
-    <div class="card-header">ارسال پیامک دلخواه</div>
+    <div class="card-header d-flex justify-content-between align-items-center">
+        <span>ارسال پیامک دلخواه</span>
+        <a href="<?= BASE_URL ?>modules/settings/general.php" class="btn btn-sm btn-secondary">
+            <i class="fas fa-arrow-right"></i> بازگشت به تنظیمات عمومی
+        </a>
+    </div>
     <div class="card-body">
         <?php if ($error): ?><?= $error ?><?php endif; ?>
         <?php if ($success): ?><div class="alert alert-success"><?= $success ?></div><?php endif; ?>

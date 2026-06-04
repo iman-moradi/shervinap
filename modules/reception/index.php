@@ -91,21 +91,37 @@ $tickets = $stmt->fetchAll();
                 </thead>
                 <tbody>
                     <?php foreach ($tickets as $ticket): 
-                        $status_class = match($ticket['status']) {
-                            'pending' => 'badge-pending',
-                            'in_progress' => 'badge-in_progress',
-                            'waiting_part' => 'badge-waiting_part',
-                            'ready' => 'badge-ready',
-                            'delivered' => 'badge-delivered',
-                            default => ''
-                        };
-                        $status_text = [
+                        // جایگزینی match expression با switch (برای PHP 7)
+                        $status_class = '';
+                        switch($ticket['status']) {
+                            case 'pending':
+                                $status_class = 'badge-pending';
+                                break;
+                            case 'in_progress':
+                                $status_class = 'badge-in_progress';
+                                break;
+                            case 'waiting_part':
+                                $status_class = 'badge-waiting_part';
+                                break;
+                            case 'ready':
+                                $status_class = 'badge-ready';
+                                break;
+                            case 'delivered':
+                                $status_class = 'badge-delivered';
+                                break;
+                            default:
+                                $status_class = '';
+                        }
+                        
+                        // استفاده از آرایه برای متن وضعیت (سازگار با PHP 7)
+                        $status_texts = [
                             'pending' => 'در انتظار',
                             'in_progress' => 'در حال تعمیر',
                             'waiting_part' => 'انتظار قطعه',
                             'ready' => 'آماده تحویل',
                             'delivered' => 'تحویل شده'
-                        ][$ticket['status']] ?? $ticket['status'];
+                        ];
+                        $status_text = isset($status_texts[$ticket['status']]) ? $status_texts[$ticket['status']] : $ticket['status'];
                     ?>
                     <tr class="ticket-row" data-mobile="<?= htmlspecialchars($ticket['customer_mobile']) ?>" data-ticket="<?= htmlspecialchars($ticket['ticket_no']) ?>">
                         <td><strong><?= htmlspecialchars($ticket['ticket_no']) ?></strong></td>

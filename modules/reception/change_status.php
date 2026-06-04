@@ -1,5 +1,6 @@
 ﻿<?php
-ob_start();
+ob_start(); // بافر برای جلوگیری از خطای header
+
 $page_title = 'تغییر وضعیت تعمیر';
 require_once '../../includes/header.php';
 require_once '../../includes/SMSManager.php';
@@ -12,7 +13,6 @@ if (!has_permission($_SESSION['user_id'], 'reception_access')) {
 
 $ticket_id = $_GET['id'] ?? 0;
 if (!$ticket_id) {
-    ob_start();
     header('Location: index.php');
     exit;
 }
@@ -34,7 +34,6 @@ $status_map = [
     'delivered' => 'تحویل شده'
 ];
 
-// تابع کمکی برای اختلاف روز بین دو تاریخ شمسی (ساده)
 function diffJalaliDays($date1, $date2) {
     $d1 = preg_replace('/[^0-9]/', '', $date1);
     $d2 = preg_replace('/[^0-9]/', '', $date2);
@@ -56,12 +55,9 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
     $db->beginTransaction();
     try {
         if ($new_status == 'ready' && $old_status != 'ready') {
-            $ready_date_sh = date('Y/m/d'); // تاریخ امروز به فرمت شمسی (در اینجا میلادی برای سادگی)
-            // محاسبه روزهای انبارداری از تاریخ پذیرش تا امروز
+            $ready_date_sh = now_jalali();
             $days_storage = diffJalaliDays($ticket['received_date_sh'], $ready_date_sh);
-            $storage_fee = $days_storage * 10000; // هر روز ۱۰ هزار تومان
-            
-            // هزینه تعمیر (فرض کنید در total_cost ذخیره شده است - اگر نه، می‌توانید فیلد جداگانه اضافه کنید)
+            $storage_fee = $days_storage * 10000;
             $repair_cost = $ticket['total_cost'] ?? 0;
             $total_cost = $repair_cost + $storage_fee;
             
@@ -73,7 +69,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
         }
         $db->commit();
         
-        // ========== ارسال پیامک وضعیت ==========
+        // ارسال پیامک با لاگ خودکار
         if (!empty($customer_mobile)) {
             $sms = new SMSManager($db);
             if ($sms->isAvailable()) {
@@ -81,9 +77,8 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
                 $message = "خدمات فنی شروین: وضعیت تعمیر دستگاه {$ticket['device_type']} به '{$status_text}' تغییر یافت. شماره پیگیری: {$ticket['ticket_no']}";
                 
                 if ($new_status == 'ready') {
-                    // محاسبه مجدد هزینه کل (اگر در بالا محاسبه نشده باشد)
                     if (!isset($total_cost)) {
-                        $days_storage = diffJalaliDays($ticket['received_date_sh'], date('Y/m/d'));
+                        $days_storage = diffJalaliDays($ticket['received_date_sh'], now_jalali());
                         $storage_fee = $days_storage * 10000;
                         $total_cost = ($ticket['total_cost'] ?? 0) + $storage_fee;
                     }
@@ -94,14 +89,11 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
                     $message .= "\nمبلغ قابل پرداخت: " . number_format($payable) . " تومان";
                     $message .= "\nهزینه انبارداری (هر روز ۱۰,۰۰۰ تومان) نیز محاسبه شده است.";
                 }
-                $smsResult = $sms->send($customer_mobile, $message);
-                if (!$smsResult['success']) {
-                    error_log("خطا در ارسال پیامک وضعیت به {$customer_mobile}: " . $smsResult['error']);
-                }
+                $sms->send($customer_mobile, $message, 'auto_status', $ticket['ticket_no']);
             }
         }
-        // ===================================
         
+        ob_end_clean();
         header("Location: view.php?id=$ticket_id");
         exit;
     } catch (Exception $e) {
@@ -111,6 +103,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
 }
 ?>
 
+<!-- HTML باقی‌مانده (بدون تغییر) -->
 <div class="modern-card">
     <div class="card-header-custom">
         <i class="fas fa-exchange-alt"></i> تغییر وضعیت تعمیر

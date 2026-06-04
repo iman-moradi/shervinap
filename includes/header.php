@@ -78,8 +78,9 @@ $menu_groups = [
         'icon' => 'fas fa-calculator',
         'items' => [
             ['title' => 'مدیریت حساب‌ها', 'url' => BASE_URL . 'modules/accounting/accounts.php', 'icon' => 'fas fa-university'],
-            ['title' => 'ثبت سند دستی', 'url' => BASE_URL . 'modules/accounting/transactions.php', 'icon' => 'fas fa-pen-alt'],
-            ['title' => 'گزارش گردش حساب', 'url' => BASE_URL . 'modules/accounting/balance_sheet.php', 'icon' => 'fas fa-chart-pie']
+            ['title' => 'ثبت سند دستی (هزینه/درآمد)', 'url' => BASE_URL . 'modules/accounting/add_transaction.php', 'icon' => 'fas fa-pen-alt'],
+            ['title' => 'گزارش گردش حساب', 'url' => BASE_URL . 'modules/accounting/balance_sheet.php', 'icon' => 'fas fa-chart-pie'],
+            ['title' => '🧠 تحلیل هوشمند و پیشنهادات', 'url' => BASE_URL . 'modules/accounting/smart_advice.php', 'icon' => 'fas fa-robot']
         ]
     ],
     'users' => [
@@ -137,7 +138,7 @@ if (empty($menu_groups['financial']['items'])) {
     <link rel="stylesheet" href="<?= BASE_URL ?>assets/css/all.min.css">
     <link rel="stylesheet" href="<?= BASE_URL ?>assets/css/theme.css">
     <!-- فونت وزیرمتن (اختیاری اما زیبا) -->
-    <link href="https://cdn.jsdelivr.net/gh/rastikerdar/vazirmatn@v33.003/Vazirmatn-font-face.css" rel="stylesheet" type="text/css" />
+   <link rel="stylesheet" href="<?= BASE_URL ?>assets/css/Vazirmatn-font-face.css">
     <script src="<?= BASE_URL ?>assets/js/jquery-3.6.0.min.js"></script>
     <script src="<?= BASE_URL ?>assets/js/bootstrap.bundle.min.js"></script>
     <style>

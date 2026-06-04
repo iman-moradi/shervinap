@@ -35,7 +35,9 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['action']) && $_POST['
     $db->prepare("UPDATE settings SET setting_value = ? WHERE setting_key = ?")->execute([$bg_color, 'base_bg_color']);
     $db->prepare("UPDATE settings SET setting_value = ? WHERE setting_key = ?")->execute([$font_size, 'font_size']);
     
-    load_appearance_settings();
+    if (function_exists('load_appearance_settings')) {
+        load_appearance_settings();
+    }
     $message = '✅ تنظیمات ظاهری ذخیره شد.';
 }
 
@@ -59,8 +61,9 @@ if (isset($_GET['backup_now'])) {
     $backupFile = __DIR__ . '/../../../backups/backup_' . date('Ymd_His') . '.sql';
     if (!is_dir(__DIR__ . '/../../../backups')) mkdir(__DIR__ . '/../../../backups', 0777, true);
     
-    // استفاده از mysqldump (در صورت وجود)
-    $cmd = "mysqldump --user=" . DB_USER . " --password=" . DB_PASS . " --host=" . DB_HOST . " " . DB_NAME . " > " . $backupFile;
+    // استفاده از متغیرهای سراسری دیتابیس به جای ثابت‌های تعریف‌نشده
+    global $db_user, $db_pass, $db_host, $db_name;
+    $cmd = "mysqldump --user=" . $db_user . " --password=" . $db_pass . " --host=" . $db_host . " " . $db_name . " > " . $backupFile;
     exec($cmd, $output, $return);
     if ($return === 0) {
         $message_backup = '✅ بکاپ با موفقیت ایجاد شد: ' . basename($backupFile);
@@ -88,20 +91,52 @@ if (isset($_GET['backup_now'])) {
     exit;
 }
 
+// ======================== حذف فونت ========================
+if (isset($_GET['delete_font'])) {
+    $fontName = urldecode($_GET['delete_font']);
+    $files = glob(__DIR__ . '/../../../assets/fonts/' . $fontName . '.*');
+    foreach ($files as $f) {
+        if (is_file($f)) unlink($f);
+    }
+    header('Location: appearance.php');
+    exit;
+}
+
+// ======================== حذف بکاپ ========================
+if (isset($_GET['delete_backup'])) {
+    $file = __DIR__ . '/../../../backups/' . urldecode($_GET['delete_backup']);
+    if (file_exists($file) && is_file($file)) unlink($file);
+    header('Location: appearance.php');
+    exit;
+}
+
+// ======================== ذخیره تنظیمات بکاپ خودکار ========================
+if (isset($_POST['save_auto'])) {
+    $auto = isset($_POST['auto_backup']) ? 1 : 0;
+    $hour = (int)$_POST['auto_backup_hour'];
+    $db->prepare("INSERT INTO settings (setting_key, setting_value, setting_group) VALUES ('auto_backup', ?, 'general') ON DUPLICATE KEY UPDATE setting_value = VALUES(setting_value)")->execute([$auto]);
+    $db->prepare("INSERT INTO settings (setting_key, setting_value, setting_group) VALUES ('auto_backup_hour', ?, 'general') ON DUPLICATE KEY UPDATE setting_value = VALUES(setting_value)")->execute([$hour]);
+    header('Location: appearance.php');
+    exit;
+}
+
 // دریافت مقادیر فعلی
 $stmt = $db->query("SELECT setting_key, setting_value FROM settings WHERE setting_group = 'appearance'");
 $current = [];
-while ($row = $stmt->fetch()) $current[$row['setting_key']] = $row['setting_value'];
+while ($row = $stmt->fetch()) {
+    $current[$row['setting_key']] = $row['setting_value'];
+}
 
 // لیست فونت‌های موجود
 $availableFonts = getFontList();
-if (empty($availableFonts)) $availableFonts = ['Tahoma', 'Vazirmatn', 'IRANSans', 'Shabnam'];
+if (empty($availableFonts)) {
+    $availableFonts = ['Tahoma', 'Vazirmatn', 'IRANSans', 'Shabnam'];
+}
 
 // لیست فایل‌های بکاپ موجود
 $backupFiles = glob(__DIR__ . '/../../../backups/*.sql');
 rsort($backupFiles);
 ?>
-
 <style>
     .font-preview {
         font-size: 20px;
@@ -124,7 +159,7 @@ rsort($backupFiles);
         <!-- تب ظاهر -->
         <div class="tab-pane fade show active" id="appearanceTab">
             <?php if (isset($message)): ?>
-                <div class="alert alert-success"><?= $message ?></div>
+                <div class="alert alert-success"><?= htmlspecialchars($message) ?></div>
             <?php endif; ?>
             <form method="post">
                 <input type="hidden" name="action" value="appearance">
@@ -133,18 +168,18 @@ rsort($backupFiles);
                         <label>فونت</label>
                         <select name="font_family" class="form-select" id="fontSelect">
                             <?php foreach ($availableFonts as $font): ?>
-                                <option value="<?= $font ?>" <?= ($current['font_family'] == $font) ? 'selected' : '' ?>><?= $font ?></option>
+                                <option value="<?= htmlspecialchars($font) ?>" <?= (isset($current['font_family']) && $current['font_family'] == $font) ? 'selected' : '' ?>><?= htmlspecialchars($font) ?></option>
                             <?php endforeach; ?>
                         </select>
                         <div class="font-preview" id="fontPreview">نمونه متن فارسی (متن تست)</div>
                     </div>
                     <div class="col-md-3 mb-3">
                         <label>رنگ متن</label>
-                        <input type="color" name="base_text_color" class="form-control" value="<?= $current['base_text_color'] ?? '#333333' ?>">
+                        <input type="color" name="base_text_color" class="form-control" value="<?= htmlspecialchars($current['base_text_color'] ?? '#333333') ?>">
                     </div>
                     <div class="col-md-3 mb-3">
                         <label>رنگ زمینه</label>
-                        <input type="color" name="base_bg_color" class="form-control" value="<?= $current['base_bg_color'] ?? '#f8f9fa' ?>">
+                        <input type="color" name="base_bg_color" class="form-control" value="<?= htmlspecialchars($current['base_bg_color'] ?? '#f8f9fa') ?>">
                     </div>
                     <div class="col-md-6 mb-3">
                         <label>سایز فونت (مثل 14px, 1rem)</label>
@@ -158,13 +193,13 @@ rsort($backupFiles);
         <!-- تب مدیریت فونت -->
         <div class="tab-pane fade" id="fontsTab">
             <?php if (isset($message_font)): ?>
-                <div class="alert alert-<?= strpos($message_font, '✅')!==false ? 'success' : 'danger' ?>"><?= $message_font ?></div>
+                <div class="alert alert-<?= strpos($message_font, '✅') !== false ? 'success' : 'danger' ?>"><?= htmlspecialchars($message_font) ?></div>
             <?php endif; ?>
             <h5>فونت‌های موجود</h5>
             <ul class="list-group mb-3">
                 <?php foreach ($availableFonts as $font): ?>
                     <li class="list-group-item d-flex justify-content-between align-items-center">
-                        <span style="font-family: '<?= $font ?>';"><?= $font ?> - نمونه متن تست</span>
+                        <span style="font-family: '<?= htmlspecialchars($font) ?>';"><?= htmlspecialchars($font) ?> - نمونه متن تست</span>
                         <a href="?delete_font=<?= urlencode($font) ?>" class="btn btn-sm btn-danger" onclick="return confirm('فونت حذف شود؟')">🗑️</a>
                     </li>
                 <?php endforeach; ?>
@@ -185,7 +220,7 @@ rsort($backupFiles);
                 <div class="alert alert-success">بکاپ با موفقیت ایجاد شد.</div>
             <?php endif; ?>
             <?php if (isset($message_backup)): ?>
-                <div class="alert alert-info"><?= $message_backup ?></div>
+                <div class="alert alert-info"><?= htmlspecialchars($message_backup) ?></div>
             <?php endif; ?>
             <a href="?backup_now=1" class="btn btn-danger mb-3">🔄 بکاپ دستی (هم اکنون)</a>
             <h5>بکاپ‌های ذخیره شده</h5>
@@ -199,11 +234,11 @@ rsort($backupFiles);
                             $date = date('Y-m-d H:i:s', filemtime($file));
                         ?>
                             <tr>
-                                <td><?= $name ?></td>
-                                <td><?= $date ?></td>
-                                <td><?= $size ?> KB</td>
+                                <td><?= htmlspecialchars($name) ?></td>
+                                <td><?= htmlspecialchars($date) ?></td>
+                                <td><?= number_format($size, 2) ?> KB</td>
                                 <td>
-                                    <a href="<?= BASE_URL ?>backups/<?= $name ?>" class="btn btn-sm btn-info" download>⬇️ دانلود</a>
+                                    <a href="<?= BASE_URL ?>backups/<?= urlencode($name) ?>" class="btn btn-sm btn-info" download>⬇️ دانلود</a>
                                     <a href="?delete_backup=<?= urlencode($name) ?>" class="btn btn-sm btn-danger" onclick="return confirm('حذف شود؟')">🗑️</a>
                                 </td>
                             </tr>
@@ -216,18 +251,19 @@ rsort($backupFiles);
             </div>
             <hr>
             <h5>تنظیمات بکاپ خودکار</h5>
-            <form method="post" action="?save_auto_backup">
+            <form method="post">
                 <?php
                 $auto_backup = $db->query("SELECT setting_value FROM settings WHERE setting_key='auto_backup'")->fetchColumn();
-                $auto_backup_hour = $db->query("SELECT setting_value FROM settings WHERE setting_key='auto_backup_hour'")->fetchColumn() ?: 2;
+                $auto_backup_hour = $db->query("SELECT setting_value FROM settings WHERE setting_key='auto_backup_hour'")->fetchColumn();
+                if ($auto_backup_hour === false) $auto_backup_hour = 2;
                 ?>
                 <div class="form-check mb-2">
                     <input type="checkbox" name="auto_backup" value="1" class="form-check-input" id="autoBackup" <?= $auto_backup ? 'checked' : '' ?>>
-                    <label for="autoBackup" class="form-check-label">فعالسازی بکاپ خودکار (هر روز ساعت <?= $auto_backup_hour ?>:00)</label>
+                    <label for="autoBackup" class="form-check-label">فعالسازی بکاپ خودکار (هر روز ساعت <?= htmlspecialchars($auto_backup_hour) ?>:00)</label>
                 </div>
                 <div class="mb-3">
                     <label>ساعت (0-23)</label>
-                    <input type="number" name="auto_backup_hour" class="form-control" value="<?= $auto_backup_hour ?>" min="0" max="23">
+                    <input type="number" name="auto_backup_hour" class="form-control" value="<?= htmlspecialchars($auto_backup_hour) ?>" min="0" max="23">
                 </div>
                 <button type="submit" name="save_auto" class="btn btn-secondary">💾 ذخیره تنظیمات</button>
             </form>
@@ -237,33 +273,9 @@ rsort($backupFiles);
 
 <script>
 document.getElementById('fontSelect').addEventListener('change', function() {
-    let font = this.value;
+    var font = this.value;
     document.getElementById('fontPreview').style.fontFamily = font;
 });
-// حذف فونت
-<?php if (isset($_GET['delete_font'])): 
-    $fontName = urldecode($_GET['delete_font']);
-    $files = glob(__DIR__ . '/../../../assets/fonts/' . $fontName . '.*');
-    foreach ($files as $f) unlink($f);
-    header('Location: appearance.php');
-    exit;
-endif; ?>
-// حذف بکاپ
-<?php if (isset($_GET['delete_backup'])): 
-    $file = __DIR__ . '/../../../backups/' . urldecode($_GET['delete_backup']);
-    if (file_exists($file)) unlink($file);
-    header('Location: appearance.php');
-    exit;
-endif; ?>
-// ذخیره تنظیمات خودکار
-<?php if (isset($_POST['save_auto'])): 
-    $auto = isset($_POST['auto_backup']) ? 1 : 0;
-    $hour = (int)$_POST['auto_backup_hour'];
-    $db->prepare("INSERT INTO settings (setting_key, setting_value, setting_group) VALUES ('auto_backup', ?, 'general') ON DUPLICATE KEY UPDATE setting_value = VALUES(setting_value)")->execute([$auto]);
-    $db->prepare("INSERT INTO settings (setting_key, setting_value, setting_group) VALUES ('auto_backup_hour', ?, 'general') ON DUPLICATE KEY UPDATE setting_value = VALUES(setting_value)")->execute([$hour]);
-    echo '<script>location.href="appearance.php";</script>';
-    exit;
-endif; ?>
 </script>
 
 <?php require_once '../../includes/footer.php'; ?>
