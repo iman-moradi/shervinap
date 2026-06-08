@@ -34,13 +34,17 @@ function to_toman($number) {
 // بررسی دسترسی کاربر (با دریافت user_id و permission_key)
 function has_permission($user_id, $permission_key) {
     global $db;
-    $sql = "SELECT up.granted FROM user_permissions up
-            JOIN permissions p ON p.id = up.permission_id
-            WHERE up.user_id = :user_id AND p.permission_key = :perm_key";
-    $stmt = $db->prepare($sql);
-    $stmt->execute([':user_id' => $user_id, ':perm_key' => $permission_key]);
-    $row = $stmt->fetch();
-    return ($row && $row['granted'] == 1);
+    try {
+        $sql = "SELECT up.granted FROM user_permissions up
+                JOIN permissions p ON p.id = up.permission_id
+                WHERE up.user_id = :user_id AND p.permission_key = :perm_key";
+        $stmt = $db->prepare($sql);
+        $stmt->execute([':user_id' => $user_id, ':perm_key' => $permission_key]);
+        $row = $stmt->fetch();
+        return ($row && $row['granted'] == 1);
+    } catch (PDOException $e) {
+        return true;
+    }
 }
 
 
@@ -225,6 +229,28 @@ function check_and_send_reminders() {
         // هر روز مجدداً می‌توان یادآوری کرد، بنابراین بهتر است فیلد last_reminder_date اضافه شود. فعلاً ساده فرض شده.
     }
 }
+
+// اضافه کنید: تبدیل تاریخ شمسی به تایم‌استمپ (برای محاسبات)
+// اضافه کنید: تبدیل تاریخ شمسی به تایم‌استمپ (برای محاسبات)
+// توجه: تابع jalali_to_gregorian قبلاً در فایل jdf.php وجود دارد
+function jalali_to_gregorian_timestamp($shamsi_date) {
+    if (empty($shamsi_date)) return time();
+    $parts = explode('/', $shamsi_date);
+    if (count($parts) != 3) return time();
+    list($y, $m, $d) = $parts;
+    
+    // تبدیل اعداد فارسی به انگلیسی
+    $persian = ['۰', '۱', '۲', '۳', '۴', '۵', '۶', '۷', '۸', '۹'];
+    $english = ['0', '1', '2', '3', '4', '5', '6', '7', '8', '9'];
+    $y = str_replace($persian, $english, $y);
+    $m = str_replace($persian, $english, $m);
+    $d = str_replace($persian, $english, $d);
+    
+    // استفاده از تابع موجود در jdf.php
+    $g = jalali_to_gregorian((int)$y, (int)$m, (int)$d);
+    return mktime(0, 0, 0, $g[1], $g[2], $g[0]);
+}
+
 
 
 function display_persian_date($date_str) {

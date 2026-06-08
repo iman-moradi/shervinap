@@ -1,7 +1,11 @@
-﻿<?php
-// حذف هرگونه خروجی قبلی و BOM
-if (ob_get_level()) ob_end_clean();
-ob_start();
+<?php
+// حذف BOM از خروجی
+ob_start(function($buffer) {
+    if (substr($buffer, 0, 3) == "\xEF\xBB\xBF") {
+        $buffer = substr($buffer, 3);
+    }
+    return $buffer;
+});
 
 require_once __DIR__ . '/config/database.php';
 require_once __DIR__ . '/includes/jdf.php';
@@ -16,7 +20,8 @@ if (!isset($_SESSION['user_id'])) {
 $type = $_GET['type'] ?? '';
 $query = trim($_GET['query'] ?? '');
 
-if (strlen($query) < 1) {
+// برای calculate_delivery نیازی به حداقل طول نیست
+if (strlen($query) < 1 && $type != 'calculate_delivery' && $type != 'get_product_by_id') {
     header('Content-Type: application/json');
     echo json_encode([]);
     exit;
@@ -61,6 +66,16 @@ try {
             $results = $stmt->fetchAll();
             break;
 
+        case 'get_product_by_id':
+            // برای ویرایش فاکتور - دریافت اطلاعات محصول با ID
+            $product_id = (int)$query;
+            if ($product_id > 0) {
+                $stmt = $db->prepare("SELECT id, name, current_stock, sale_price, purchase_price FROM products WHERE id = ?");
+                $stmt->execute([$product_id]);
+                $results = $stmt->fetchAll();
+            }
+            break;
+
         case 'customer_search':
             $sql = "SELECT id, fullname, mobile, address FROM customers WHERE mobile LIKE :q OR fullname LIKE :q LIMIT 10";
             $stmt = $db->prepare($sql);
@@ -68,13 +83,52 @@ try {
             $results = $stmt->fetchAll();
             break;
 
-
         case 'suppliers':
-            $sql = "SELECT id, fullname, mobile, phone, address FROM customers WHERE type = 'supplier' AND (fullname LIKE :q OR mobile LIKE :q) LIMIT 10";
+            // جستجو در تأمین‌کنندگان و همکاران (برای فاکتور خرید)
+            $sql = "SELECT id, fullname, mobile, phone, address 
+                    FROM customers 
+                    WHERE type IN ('supplier', 'partner') 
+                    AND (fullname LIKE :q OR mobile LIKE :q) 
+                    LIMIT 10";
             $stmt = $db->prepare($sql);
             $stmt->execute([':q' => "%$query%"]);
             $results = $stmt->fetchAll();
             break;
+            
+        case 'all_customers':
+            // جستجو در همه مشتریان (برای فروش و تعمیرات)
+            $sql = "SELECT id, fullname, mobile, phone, address 
+                    FROM customers 
+                    WHERE (fullname LIKE :q OR mobile LIKE :q) 
+                    LIMIT 15";
+            $stmt = $db->prepare($sql);
+            $stmt->execute([':q' => "%$query%"]);
+            $results = $stmt->fetchAll();
+            break;
+            
+        case 'calculate_delivery':
+            $received_date = $_GET['received_date'] ?? '';
+            $days = (int)($_GET['days'] ?? 0);
+            
+            if (empty($received_date) || $days <= 0) {
+                echo json_encode(['success' => false, 'error' => 'پارامترهای نامعتبر']);
+                exit;
+            }
+            
+            // تبدیل اعداد فارسی به انگلیسی در تاریخ
+            $persian_numbers = ['۰', '۱', '۲', '۳', '۴', '۵', '۶', '۷', '۸', '۹'];
+            $english_numbers = ['0', '1', '2', '3', '4', '5', '6', '7', '8', '9'];
+            $received_date = str_replace($persian_numbers, $english_numbers, $received_date);
+            
+            require_once __DIR__ . '/includes/date_helper.php';
+            $delivery_date = jalali_add_days($received_date, $days);
+            
+            if ($delivery_date && $delivery_date != '') {
+                echo json_encode(['success' => true, 'delivery_date' => $delivery_date]);
+            } else {
+                echo json_encode(['success' => false, 'error' => 'خطا در محاسبه تاریخ - ورودی: ' . $received_date . ', روز: ' . $days]);
+            }
+            exit;
             
         default:
             $results = [];
@@ -83,11 +137,15 @@ try {
     http_response_code(500);
     echo json_encode(['error' => 'خطای پایگاه داده: ' . $e->getMessage()]);
     exit;
+} catch (Exception $e) {
+    http_response_code(500);
+    echo json_encode(['error' => 'خطای عمومی: ' . $e->getMessage()]);
+    exit;
 }
 
 // پاک کردن بافر و ارسال JSON خالص
 ob_clean();
 header('Content-Type: application/json; charset=utf-8');
-echo json_encode($results);
+echo json_encode($results, JSON_UNESCAPED_UNICODE);
 exit;
 ?>

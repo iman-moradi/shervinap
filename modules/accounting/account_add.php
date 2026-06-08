@@ -1,4 +1,5 @@
 ﻿<?php
+ob_start();
 $page_title = 'افزودن حساب / کارت بانکی';
 require_once '../../includes/header.php';
 
@@ -21,6 +22,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
     } else {
         $stmt = $db->prepare("INSERT INTO accounts (account_name, account_type, bank_name, card_number, initial_balance, current_balance) VALUES (?,?,?,?,?,?)");
         if ($stmt->execute([$account_name, $account_type, $bank_name, $card_number, $initial_balance, $initial_balance])) {
+            ob_end_clean();
             header('Location: accounts.php?msg=added');
             exit;
         } else {

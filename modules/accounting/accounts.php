@@ -26,7 +26,7 @@ $accounts = $db->query("SELECT * FROM accounts ORDER BY id DESC")->fetchAll();
 <div class="card">
     <div class="card-header">
         <a href="account_add.php" class="btn btn-primary">➕ افزودن حساب/کارت جدید</a>
-        <a href="transactions.php" class="btn btn-success">💰 ثبت سند دستی</a>
+        <a href="add_transaction.php" class="btn btn-success">💰 ثبت سند دستی</a>
         <a href="balance_sheet.php" class="btn btn-info">📊 گزارش گردش حساب</a>
     </div>
     <div class="card-body">

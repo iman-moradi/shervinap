@@ -2,7 +2,7 @@
 $page_title = 'پذیرش دستگاه جدید';
 require_once '../../includes/header.php';
 require_once '../../includes/SMSManager.php';
-require_once '../../includes/date_helper.php'; // هماهنگ با purchase_invoice
+require_once '../../includes/date_helper.php';
 
 if (!has_permission($_SESSION['user_id'], 'reception_access')) {
     echo '<div class="alert alert-danger">دسترسی ندارید.</div>';
@@ -31,8 +31,26 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
     $normal_days = ($priority == 'normal') ? (int)$_POST['normal_days'] : null;
     $status = 'pending';
     $received_date_sh = $_POST['received_date_sh'];
+    
+    // دریافت تاریخ تحویل از فیلد مخفی (اگر AJAX محاسبه کرده باشد)
+    $expected_delivery_date_sh = $_POST['expected_delivery_hidden'] ?? null;
+    
+    // اگر فیلد مخفی خالی بود، خودمان محاسبه کنیم
+    if (empty($expected_delivery_date_sh)) {
+        if ($priority == 'urgent' && !empty($urgent_deadline_sh)) {
+            $expected_delivery_date_sh = $urgent_deadline_sh;
+        } elseif ($priority == 'normal' && !empty($normal_days) && $normal_days > 0) {
+            $received_ts = jalali_to_timestamp($received_date_sh);
+            if ($received_ts > 0) {
+                $delivery_ts = $received_ts + ($normal_days * 86400);
+                $delivery_gregorian = date('Y-m-d', $delivery_ts);
+                list($gy, $gm, $gd) = explode('-', $delivery_gregorian);
+                list($jy, $jm, $jd) = gregorian_to_jalali($gy, $gm, $gd);
+                $expected_delivery_date_sh = sprintf("%04d/%02d/%02d", $jy, $jm, $jd);
+            }
+        }
+    }
 
-    // اعتبارسنجی تاریخ شمسی (همانند purchase_invoice)
     if (empty($received_date_sh)) {
         $error = "تاریخ پذیرش باید پر شود";
     } else {
@@ -55,18 +73,32 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
 
             // تولید شماره تیکت
             $ticket_no = 'R-' . str_replace('/', '', $received_date_sh) . '-' . rand(100, 999);
+            
             $sql = "INSERT INTO repair_tickets 
                     (ticket_no, customer_id, device_type, brand, model, serial_no, reported_fault, 
                      accompanying_parts, physical_condition, deposit, priority, urgent_deadline_sh, 
-                     normal_days, status, received_date_sh, created_by, total_cost, paid_amount) 
-                    VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,0,0)";
+                     normal_days, expected_delivery_date_sh, status, received_date_sh, created_by, total_cost, paid_amount) 
+                    VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,0,0)";
             $stmt = $db->prepare($sql);
             $stmt->execute([
                 $ticket_no, $customer_id, $device_type, $brand, $model, $serial_no, $reported_fault,
                 $accompanying_parts, $physical_condition, $deposit, $priority, $urgent_deadline_sh,
-                $normal_days, $status, $received_date_sh, $_SESSION['user_id']
+                $normal_days, $expected_delivery_date_sh, $status, $received_date_sh, $_SESSION['user_id']
             ]);
             $ticket_id = $db->lastInsertId();
+            
+            // ثبت تراکنش بیعانه در صورت وجود
+            if ($deposit > 0) {
+                $default_cash_account_id = 1;
+                $trans_sql = "INSERT INTO transactions 
+                            (transaction_date_sh, account_id, amount, type, ref_type, ref_id, description, created_by) 
+                            VALUES (?, ?, ?, 'income', 'repair', ?, 'بیعانه تعمیر', ?)";
+                $trans_stmt = $db->prepare($trans_sql);
+                $trans_stmt->execute([$received_date_sh, $default_cash_account_id, $deposit, $ticket_id, $_SESSION['user_id']]);
+                
+                $upd_acc = $db->prepare("UPDATE accounts SET current_balance = current_balance + ? WHERE id = ?");
+                $upd_acc->execute([$deposit, $default_cash_account_id]);
+            }
             $db->commit();
 
             // ارسال پیامک
@@ -119,7 +151,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
         box-shadow: 0 4px 12px rgba(0,0,0,0.1);
     }
     .modern-card .card-body {
-    padding: 2rem !important;
+        padding: 2rem !important;
     }
     .suggestion-item {
         padding: 8px 12px;
@@ -161,11 +193,14 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
         <?php if ($success): ?><div class="alert alert-success alert-glass"><?= htmlspecialchars($success) ?></div><?php endif; ?>
         
         <form method="post" id="receptionForm" class="form-modern">
+            <!-- فیلد مخفی برای ذخیره تاریخ تحویل تخمینی -->
+            <input type="hidden" name="expected_delivery_hidden" id="expected_delivery_hidden" value="">
+            
             <h5 class="mb-3"><i class="fas fa-user"></i> اطلاعات مشتری</h5>
             <div class="row">
                 <div class="col-md-4 mb-3 position-relative">
                     <label>موبایل *</label>
-                    <input type="text" id="customerMobile" class="form-control" autocomplete="off" required>
+                    <input type="text" name="customer_mobile" id="customerMobile" class="form-control" autocomplete="off" required>
                     <input type="hidden" name="customer_id" id="customerId" value="">
                     <div id="mobileSuggestions" class="suggestions-box"></div>
                     <small class="text-muted">شماره موبایل مشتری را وارد کنید، اگر وجود داشت انتخاب کنید، در غیر این صورت اطلاعات را کامل کنید.</small>
@@ -191,7 +226,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
                 <div class="col-md-4 mb-3"><label>وضعیت ظاهری</label><input type="text" name="physical_condition" class="form-control" placeholder="خش، خط و خش، سالم"></div>
                 <div class="col-md-4 mb-3"><label>بیعانه (تومان)</label><input type="number" name="deposit" class="form-control" value="0"></div>
                 <div class="col-md-4 mb-3"><label>تاریخ پذیرش (مثال 1402/10/15)</label>
-                    <input type="text" name="received_date_sh" class="form-control" required value="<?= now_jalali() ?>">
+                    <input type="text" name="received_date_sh" id="received_date" class="form-control" required value="<?= now_jalali() ?>">
                 </div>
             </div>
 
@@ -206,11 +241,16 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
                 </div>
                 <div class="col-md-3 mb-3" id="urgentDiv" style="display:none;">
                     <label>تاریخ تحویل توافقی (فوری)</label>
-                    <input type="text" name="urgent_deadline_sh" class="form-control" placeholder="مثال 1402/10/20">
+                    <input type="text" name="urgent_deadline_sh" id="urgent_deadline" class="form-control" placeholder="مثال 1402/10/20">
                 </div>
                 <div class="col-md-3 mb-3" id="normalDiv">
                     <label>زمان تعمیر (روز)</label>
-                    <input type="number" name="normal_days" class="form-control" value="3" min="1">
+                    <input type="number" name="normal_days" id="normal_days" class="form-control" value="3" min="1">
+                </div>
+                <div class="col-md-3 mb-3">
+                    <label>تاریخ تحویل تخمینی</label>
+                    <input type="text" id="expected_delivery_display" class="form-control" readonly style="background-color: #f8f9fa;">
+                    <small class="text-muted">به‌طور خودکار محاسبه می‌شود</small>
                 </div>
             </div>
             <div class="mt-4 d-flex gap-2">
@@ -225,6 +265,89 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
 $(document).ready(function(){
     var searchTimeout = null;
     
+    // تابع محاسبه تاریخ تحویل تخمینی با AJAX
+    function calculateExpectedDelivery() {
+        var priority = $('#priority').val();
+        var receivedDate = $('#received_date').val();
+        var normalDays = $('#normal_days').val();
+        var urgentDeadline = $('#urgent_deadline').val();
+        
+        if (!receivedDate) {
+            $('#expected_delivery_display').val('');
+            $('#expected_delivery_hidden').val('');
+            return;
+        }
+        
+        if (priority === 'urgent' && urgentDeadline) {
+            $('#expected_delivery_display').val(urgentDeadline);
+            $('#expected_delivery_hidden').val(urgentDeadline);
+            return;
+        }
+        
+        if (priority === 'normal' && normalDays && normalDays > 0) {
+            $('#expected_delivery_display').val('در حال محاسبه...');
+            
+            $.ajax({
+                url: '../../ajax_search.php',
+                type: 'GET',
+                data: {
+                    type: 'calculate_delivery',
+                    received_date: receivedDate,
+                    days: normalDays
+                },
+                dataType: 'json',
+                timeout: 5000,
+                success: function(response) {
+                    if (response.success) {
+                        $('#expected_delivery_display').val(response.delivery_date);
+                        $('#expected_delivery_hidden').val(response.delivery_date);
+                    } else {
+                        console.log('خطای سرور:', response.error);
+                        $('#expected_delivery_display').val('خطا: ' + (response.error || 'محاسبه نشد'));
+                        $('#expected_delivery_hidden').val('');
+                    }
+                },
+                error: function(xhr, status, error) {
+                    console.log('خطای AJAX:', status, error);
+                    console.log('پاسخ سرور:', xhr.responseText);
+                    $('#expected_delivery_display').val('خطا در ارتباط با سرور');
+                    $('#expected_delivery_hidden').val('');
+                }
+            });
+        } else {
+            $('#expected_delivery_display').val('');
+            $('#expected_delivery_hidden').val('');
+        }
+    }
+    
+    // رویدادهای محاسبه تاریخ تحویل
+    $('#priority').on('change', function() {
+        if ($(this).val() === 'urgent') {
+            $('#urgentDiv').show();
+            $('#normalDiv').hide();
+        } else {
+            $('#urgentDiv').hide();
+            $('#normalDiv').show();
+        }
+        calculateExpectedDelivery();
+    });
+    
+    $('#received_date').on('change keyup', function() {
+        calculateExpectedDelivery();
+    });
+    
+    $('#normal_days').on('change keyup', function() {
+        calculateExpectedDelivery();
+    });
+    
+    $('#urgent_deadline').on('change keyup', function() {
+        calculateExpectedDelivery();
+    });
+    
+    // محاسبه اولیه
+    calculateExpectedDelivery();
+    
+    // جستجوی مشتری
     $('#customerMobile').on('keyup', function() {
         var query = $(this).val().trim();
         clearTimeout(searchTimeout);
@@ -294,16 +417,6 @@ $(document).ready(function(){
             return m;
         });
     }
-    
-    $('#priority').on('change', function() {
-        if ($(this).val() === 'urgent') {
-            $('#urgentDiv').show();
-            $('#normalDiv').hide();
-        } else {
-            $('#urgentDiv').hide();
-            $('#normalDiv').show();
-        }
-    });
 });
 </script>
 <?php require_once '../../includes/footer.php'; ?>

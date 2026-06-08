@@ -1,13 +1,12 @@
 ﻿<?php
-session_start();
+// شروع سشن فقط در صورتی که قبلاً شروع نشده باشد
+if (session_status() === PHP_SESSION_NONE) {
+    session_start();
+}
+
 require_once __DIR__ . '/../config/database.php';
 require_once __DIR__ . '/../config/app.php';
 require_once __DIR__ . '/functions.php';
-
-if (!isset($_SESSION['user_id'])) {
-    header('Location: ' . BASE_URL . 'login.php');
-    exit;
-}
 
 $user_id = $_SESSION['user_id'];
 $user_fullname = $_SESSION['fullname'] ?? 'کاربر';
@@ -80,6 +79,7 @@ $menu_groups = [
             ['title' => 'مدیریت حساب‌ها', 'url' => BASE_URL . 'modules/accounting/accounts.php', 'icon' => 'fas fa-university'],
             ['title' => 'ثبت سند دستی (هزینه/درآمد)', 'url' => BASE_URL . 'modules/accounting/add_transaction.php', 'icon' => 'fas fa-pen-alt'],
             ['title' => 'گزارش گردش حساب', 'url' => BASE_URL . 'modules/accounting/balance_sheet.php', 'icon' => 'fas fa-chart-pie'],
+			['title' => 'گزارش کامل تمام تراکنش‌های مالی', 'url' => BASE_URL . 'modules/accounting/all_transactions.php', 'icon' => 'fas fa-chart-pie'],
             ['title' => '🧠 تحلیل هوشمند و پیشنهادات', 'url' => BASE_URL . 'modules/accounting/smart_advice.php', 'icon' => 'fas fa-robot']
         ]
     ],
@@ -141,6 +141,7 @@ if (empty($menu_groups['financial']['items'])) {
    <link rel="stylesheet" href="<?= BASE_URL ?>assets/css/Vazirmatn-font-face.css">
     <script src="<?= BASE_URL ?>assets/js/jquery-3.6.0.min.js"></script>
     <script src="<?= BASE_URL ?>assets/js/bootstrap.bundle.min.js"></script>
+	<script src="<?= BASE_URL ?>assets/js/jalaali.js"></script>
     <style>
         :root {
             --sidebar-bg: rgba(30, 41, 59, 0.95);

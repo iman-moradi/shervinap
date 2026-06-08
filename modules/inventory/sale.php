@@ -17,7 +17,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['submit_sale'])) {
     $invoice_date = $_POST['invoice_date'];
     $account_id = (int)$_POST['account_id'];
     $paid_amount = (int)$_POST['paid_amount'];
-    $items = $_POST['items']; // آرایه‌ای از product_id, quantity, unit_price
+    $items = $_POST['items'];
     
     if (empty($items) || !is_array($items)) {
         $error = 'حداقل یک قلم کالا باید وارد شود.';
@@ -26,8 +26,9 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['submit_sale'])) {
         try {
             // ایجاد فاکتور فروش
             $invoice_no = 'SAL-' . jdate('YmdHis') . rand(100, 999);
-            $stmt = $db->prepare("INSERT INTO sales_invoices (invoice_no, customer_id, invoice_date_sh, total_amount, paid_amount, account_id, created_by) 
-                                   VALUES (?, ?, ?, 0, ?, ?, ?)");
+            $stmt = $db->prepare("INSERT INTO sales_invoices 
+                (invoice_no, customer_id, invoice_date_sh, total_amount, paid_amount, account_id, created_by) 
+                VALUES (?, ?, ?, 0, ?, ?, ?)");
             $stmt->execute([$invoice_no, $customer_id, $invoice_date, $paid_amount, $account_id, $_SESSION['user_id']]);
             $invoice_id = $db->lastInsertId();
             
@@ -63,17 +64,28 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['submit_sale'])) {
             // بروزرسانی مبلغ کل فاکتور
             $db->prepare("UPDATE sales_invoices SET total_amount = ? WHERE id = ?")->execute([$total_amount, $invoice_id]);
             
-            // ثبت سند حسابداری (درآمد)
-            $trans = $db->prepare("INSERT INTO transactions (transaction_date_sh, account_id, amount, type, ref_type, ref_id, created_by, description) 
-                                   VALUES (?, ?, ?, 'income', 'sale', ?, ?, 'فروش کالا')");
+            // ============================================
+            // ثبت سند حسابداری (درآمد) - بخش اصلاح شده
+            // ============================================
+            $trans = $db->prepare("INSERT INTO transactions 
+                (transaction_date_sh, account_id, amount, type, ref_type, ref_id, created_by, description, category_id) 
+                VALUES (?, ?, ?, 'income', 'sale', ?, ?, 'فروش کالا', NULL)");
             $trans->execute([$invoice_date, $account_id, $total_amount, $invoice_id, $_SESSION['user_id']]);
             
             // به‌روزرسانی موجودی حساب
             $db->prepare("UPDATE accounts SET current_balance = current_balance + ? WHERE id = ?")->execute([$total_amount, $account_id]);
             
+            // اگر فروش نسیه است (مبلغ پرداختی کمتر از کل)، در جدول credit_sales ثبت شود
+            if ($paid_amount < $total_amount && $customer_id) {
+                $due_date = !empty($_POST['due_date']) ? $_POST['due_date'] : jdate('Y/m/d', strtotime('+30 days'));
+                $credit_stmt = $db->prepare("INSERT INTO credit_sales 
+                    (customer_id, invoice_no, sale_date_sh, total_amount, paid_amount, due_date_sh, status, created_by) 
+                    VALUES (?, ?, ?, ?, ?, ?, 'partial', ?)");
+                $credit_stmt->execute([$customer_id, $invoice_no, $invoice_date, $total_amount, $paid_amount, $due_date, $_SESSION['user_id']]);
+            }
+            
             $db->commit();
             $success = "✅ فاکتور فروش با شماره $invoice_no ثبت شد. مبلغ کل: " . number_format($total_amount) . " تومان";
-            // پاک کردن فرم (می‌توان redirect کرد)
             echo '<meta http-equiv="refresh" content="2;url=products.php">';
         } catch (Exception $e) {
             $db->rollBack();
@@ -85,8 +97,9 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['submit_sale'])) {
 // دریافت لیست محصولات، حساب‌ها و مشتریان
 $products = $db->query("SELECT id, name, current_stock, sale_price FROM products WHERE current_stock > 0 ORDER BY name")->fetchAll();
 $accounts = $db->query("SELECT id, account_name, current_balance FROM accounts ORDER BY account_name")->fetchAll();
-$customers = $db->query("SELECT id, fullname, mobile FROM customers ORDER BY fullname")->fetchAll();
+$customers = $db->query("SELECT id, fullname, mobile FROM customers WHERE type = 'customer' ORDER BY fullname")->fetchAll();
 ?>
+
 <style>
     .suggestion-box {
         position: absolute;
@@ -107,8 +120,9 @@ $customers = $db->query("SELECT id, fullname, mobile FROM customers ORDER BY ful
         background-color: #f0f0f0;
     }
 </style>
+
 <div class="card">
-    <div class="card-header">💰 ثبت فاکتور فروش</div>
+    <div class="card-header bg-success text-white">💰 ثبت فاکتور فروش</div>
     <div class="card-body">
         <?php if ($error): ?><div class="alert alert-danger"><?= $error ?></div><?php endif; ?>
         <?php if ($success): ?><div class="alert alert-success"><?= $success ?></div><?php endif; ?>
@@ -117,7 +131,7 @@ $customers = $db->query("SELECT id, fullname, mobile FROM customers ORDER BY ful
             <div class="row">
                 <div class="col-md-4 mb-3">
                     <label>مشتری (اختیاری)</label>
-                    <select name="customer_id" class="form-select">
+                    <select name="customer_id" class="form-select" id="customerSelect">
                         <option value="">بدون مشتری (فروش عمومی)</option>
                         <?php foreach ($customers as $c): ?>
                             <option value="<?= $c['id'] ?>"><?= htmlspecialchars($c['fullname']) ?> (<?= $c['mobile'] ?>)</option>
@@ -125,7 +139,7 @@ $customers = $db->query("SELECT id, fullname, mobile FROM customers ORDER BY ful
                     </select>
                 </div>
                 <div class="col-md-4 mb-3">
-                    <label>تاریخ فاکتور (مثال 1402/10/15)</label>
+                    <label>تاریخ فاکتور</label>
                     <input type="text" name="invoice_date" class="form-control" value="<?= now_jalali() ?>" required>
                 </div>
                 <div class="col-md-4 mb-3">
@@ -138,14 +152,18 @@ $customers = $db->query("SELECT id, fullname, mobile FROM customers ORDER BY ful
                 </div>
                 <div class="col-md-3 mb-3">
                     <label>مبلغ پرداختی (تومان)</label>
-                    <input type="number" name="paid_amount" class="form-control" value="0">
+                    <input type="number" name="paid_amount" id="paid_amount" class="form-control" value="0" min="0">
                     <small class="text-muted">در صورت پرداخت نقدی یا کارت خوان</small>
+                </div>
+                <div class="col-md-3 mb-3" id="dueDateDiv" style="display:none;">
+                    <label>تاریخ سررسید (فروش نسیه)</label>
+                    <input type="text" name="due_date" class="form-control" value="<?= jdate('Y/m/d', strtotime('+30 days')) ?>">
                 </div>
             </div>
             
             <h5>اقلام فروش</h5>
             <table class="table table-bordered table-sm" id="itemsTable">
-                <thead>
+                <thead class="table-light">
                     <tr><th>کالا</th><th>تعداد</th><th>قیمت واحد (تومان)</th><th>جمع</th><th></th></tr>
                 </thead>
                 <tbody>
@@ -171,12 +189,19 @@ $customers = $db->query("SELECT id, fullname, mobile FROM customers ORDER BY ful
     </div>
 </div>
 
+<script src="https://code.jquery.com/jquery-3.6.0.min.js"></script>
 <script>
 $(document).ready(function(){
     var rowIndex = 1;
     
+    // نمایش فیلد سررسید در صورت انتخاب مشتری و مبلغ پرداختی کمتر از کل
+    $('#customerSelect, #paid_amount').on('change keyup', function() {
+        var hasCustomer = $('#customerSelect').val() != '';
+        var paidAmount = parseInt($('#paid_amount').val()) || 0;
+        // اینجا منطق بعد از محاسبه total_amount پیاده می‌شود
+    });
+    
     function attachEvents() {
-        // جستجوی زنده برای هر ردیف
         $('.product-search').off('keyup').on('keyup', function() {
             var input = $(this);
             var box = input.siblings('.suggestion-box');
@@ -206,7 +231,6 @@ $(document).ready(function(){
             });
         });
         
-        // انتخاب محصول از جعبه پیشنهاد
         $(document).off('click', '.suggestion-item').on('click', '.suggestion-item', function(e) {
             e.preventDefault();
             var row = $(this).closest('tr');
@@ -220,12 +244,10 @@ $(document).ready(function(){
             updateRowTotal(row);
         });
         
-        // محاسبه جمع هر ردیف
         $('.qty, .price').off('keyup').on('keyup', function() {
             updateRowTotal($(this).closest('tr'));
         });
         
-        // حذف ردیف
         $('.removeRow').off('click').on('click', function() {
             if ($('#itemsTable tbody tr').length > 1) {
                 $(this).closest('tr').remove();
@@ -251,6 +273,15 @@ $(document).ready(function(){
             sum += parseInt(val) || 0;
         });
         $('#grandTotal').text(sum.toLocaleString());
+        
+        // بررسی فروش نسیه
+        var paidAmount = parseInt($('#paid_amount').val()) || 0;
+        var hasCustomer = $('#customerSelect').val() != '';
+        if (hasCustomer && paidAmount < sum) {
+            $('#dueDateDiv').show();
+        } else {
+            $('#dueDateDiv').hide();
+        }
     }
     
     $('#addRow').click(function() {
@@ -261,7 +292,6 @@ $(document).ready(function(){
         newRow.find('.price').val(0);
         newRow.find('.row-total').text('0');
         newRow.find('.suggestion-box').hide();
-        // تغییر name attributes برای آرایه
         newRow.find('.product-id').attr('name', 'items['+rowIndex+'][product_id]');
         newRow.find('.qty').attr('name', 'items['+rowIndex+'][quantity]');
         newRow.find('.price').attr('name', 'items['+rowIndex+'][unit_price]');
@@ -286,7 +316,6 @@ $(document).ready(function(){
     
     attachEvents();
     
-    // کلیک خارج از باکس پیشنهاد، آن را ببندد
     $(document).click(function(e) {
         if (!$(e.target).closest('.product-search, .suggestion-box').length) {
             $('.suggestion-box').hide();
@@ -294,4 +323,5 @@ $(document).ready(function(){
     });
 });
 </script>
+
 <?php require_once '../../includes/footer.php'; ?>

@@ -69,10 +69,13 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['submit_purchase'])) {
                 $mov->execute([$product_id, $qty, $unit_price, $invoice_id]);
             }
             
-            // ثبت تراکنش حسابداری فقط در صورت پرداخت نقدی
+            // ============================================
+            // ثبت تراکنش حسابداری - بخش اصلاح شده
+            // ============================================
             if ($paid_amount > 0 && $account_id) {
-                $trans = $db->prepare("INSERT INTO transactions (transaction_date_sh, account_id, amount, type, ref_type, ref_id, created_by, description) 
-                                       VALUES (?, ?, ?, 'expense', 'purchase', ?, ?, 'خرید کالا - پرداخت نقدی')");
+                $trans = $db->prepare("INSERT INTO transactions 
+                    (transaction_date_sh, account_id, amount, type, ref_type, ref_id, created_by, description, category_id) 
+                    VALUES (?, ?, ?, 'expense', 'purchase', ?, ?, 'خرید کالا - پرداخت نقدی', NULL)");
                 $trans->execute([$invoice_date, $account_id, $paid_amount, $invoice_id, $_SESSION['user_id']]);
                 $db->prepare("UPDATE accounts SET current_balance = current_balance - ? WHERE id = ?")->execute([$paid_amount, $account_id]);
             }
@@ -90,13 +93,15 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['submit_purchase'])) {
 $products = $db->query("SELECT id, name, current_stock, purchase_price FROM products ORDER BY name")->fetchAll();
 $accounts = $db->query("SELECT id, account_name, current_balance FROM accounts ORDER BY account_name")->fetchAll();
 ?>
+
 <style>
     .suggestion-box { position: absolute; z-index: 1000; background: white; border: 1px solid #ccc; width: 100%; max-height: 200px; overflow-y: auto; display: none; }
     .suggestion-item { padding: 8px; cursor: pointer; border-bottom: 1px solid #eee; }
     .suggestion-item:hover { background-color: #f0f0f0; }
 </style>
+
 <div class="card">
-    <div class="card-header">📦 ثبت فاکتور خرید</div>
+    <div class="card-header bg-info text-white">📦 ثبت فاکتور خرید</div>
     <div class="card-body">
         <?php if ($error): ?><div class="alert alert-danger"><?= $error ?></div><?php endif; ?>
         <?php if ($success): ?><div class="alert alert-success"><?= $success ?></div><?php endif; ?>
@@ -111,7 +116,7 @@ $accounts = $db->query("SELECT id, account_name, current_balance FROM accounts O
                     <small class="text-muted">نام تأمین‌کننده را جستجو کنید یا در صورت جدید بودن، مستقیم وارد کنید.</small>
                 </div>
                 <div class="col-md-4 mb-3">
-                    <label>تاریخ فاکتور (مثال 1402/10/15)</label>
+                    <label>تاریخ فاکتور</label>
                     <input type="text" name="invoice_date" class="form-control" value="<?= now_jalali() ?>" required>
                 </div>
                 <div class="col-md-4 mb-3">
@@ -132,7 +137,7 @@ $accounts = $db->query("SELECT id, account_name, current_balance FROM accounts O
             
             <h5>اقلام خرید</h5>
             <table class="table table-bordered table-sm" id="itemsTable">
-                <thead>
+                <thead class="table-light">
                     <tr><th>کالا</th><th>تعداد</th><th>قیمت واحد (تومان)</th><th>جمع</th><th></th></tr>
                 </thead>
                 <tbody>
@@ -158,12 +163,13 @@ $accounts = $db->query("SELECT id, account_name, current_balance FROM accounts O
     </div>
 </div>
 
+<script src="https://code.jquery.com/jquery-3.6.0.min.js"></script>
 <script>
 $(document).ready(function(){
     var rowIndex = 1;
     var searchTimeout = null;
     
-    // ==================== جستجوی تأمین‌کننده ====================
+    // جستجوی تأمین‌کننده
     var supplierSearch = $('#supplierSearch');
     var supplierSuggestions = $('#supplierSuggestions');
     var supplierNameField = $('#supplierName');
@@ -207,7 +213,6 @@ $(document).ready(function(){
         supplierSuggestions.hide();
     });
     
-    // اگر کاربر نام جدید وارد کرد و از لیست انتخاب نکرد
     $('#purchaseForm').on('submit', function() {
         if (supplierNameField.val() === '' && supplierSearch.val() !== '') {
             $('#supplierName').val(supplierSearch.val());
@@ -220,7 +225,7 @@ $(document).ready(function(){
         }
     });
     
-    // ==================== مدیریت نمایش فیلد حساب بر اساس مبلغ پرداختی ====================
+    // نمایش فیلد حساب بر اساس مبلغ پرداختی
     $('#paid_amount').on('keyup change', function(){
         var paid = parseInt($(this).val()) || 0;
         if(paid > 0){
@@ -232,7 +237,7 @@ $(document).ready(function(){
         }
     }).trigger('keyup');
     
-    // ==================== جستجوی کالا (همان کد قبلی) ====================
+    // جستجوی کالا
     function attachEvents() {
         $('.product-search').off('keyup').on('keyup', function() {
             var input = $(this);
@@ -338,4 +343,5 @@ $(document).ready(function(){
     });
 });
 </script>
+
 <?php require_once '../../includes/footer.php'; ?>

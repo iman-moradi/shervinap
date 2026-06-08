@@ -182,6 +182,15 @@ $current_status_class = $status_badge_class_map[$ticket['status']] ?? '';
                 <div class="mt-3 d-flex gap-2">
                     <a href="edit.php?id=<?= $ticket_id ?>" class="btn btn-modern btn-sm"><i class="fas fa-edit"></i> ویرایش</a>
                     <a href="change_status.php?id=<?= $ticket_id ?>" class="btn btn-outline-secondary btn-sm"><i class="fas fa-exchange-alt"></i> تغییر وضعیت</a>
+					
+					<?php if($ticket['status'] != 'delivered'): ?>
+						<a href="deliver.php?id=<?= $ticket_id ?>" class="btn btn-success btn-sm">تحویل و تسویه</a>
+					<?php endif; ?>
+					
+					<?php if (!in_array($ticket['status'], ['delivered', 'canceled'])): ?>
+						<a href="refund.php?id=<?= $ticket_id ?>" class="btn btn-outline-danger btn-sm">مرجوعی و برگشت</a>
+					<?php endif; ?>
+					
                 </div>
             </div>
         </div>

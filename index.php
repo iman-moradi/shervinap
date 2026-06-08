@@ -1,27 +1,52 @@
 ﻿<?php
+// ==================== بارگذاری توابع شمسی ====================
+if (!function_exists('jdate')) {
+    require_once __DIR__ . '/includes/jdf.php';
+}
+
+/**
+ * تبدیل تاریخ شمسی به فرمت یکسان (اعداد فارسی) برای تطابق با دیتابیس
+ * - اگر timestamp ارسال نشود، زمان جاری (time()) جایگزین می‌شود تا از خطای jdate جلوگیری شود.
+ */
+function normalize_date($format = 'Y/m/d', $timestamp = null) {
+    if ($timestamp === null || $timestamp === '') {
+        $timestamp = time();
+    }
+    return jdate($format, $timestamp);
+}
+
 $page_title = 'داشبورد مدیریت';
 require_once 'includes/header.php';
 
+// بررسی دسترسی
 if (!has_permission($_SESSION['user_id'], 'dashboard_view')) {
     echo '<div class="alert alert-danger">شما دسترسی به این بخش ندارید.</div>';
     require_once 'includes/footer.php';
     exit;
 }
 
-// ==================== دریافت داده‌های آماری ====================
+// ==================== تبدیل تاریخ شمسی امروز به بازه میلادی (برای created_at) ====================
+$today_sh = normalize_date('Y/m/d');          // مثال: ۱۴۰۵/۰۳/۱۴
+list($year, $month, $day) = explode('/', $today_sh);
 
-// 1. فروش 7 روز اخیر (مقادیر شمسی)
+// تولید تایم‌استمپ ابتدا و انتهای روز جاری میلادی
+$start_timestamp = jmktime(0, 0, 0, $month, $day, $year);
+$end_timestamp   = jmktime(23, 59, 59, $month, $day, $year);
+$start_date_mysql = date('Y-m-d H:i:s', $start_timestamp);
+$end_date_mysql   = date('Y-m-d H:i:s', $end_timestamp);
+
+// ==================== 1. فروش 7 روز اخیر ====================
 $sales_data = [];
 $sales_labels = [];
 for ($i = 6; $i >= 0; $i--) {
-    $date = jdate('Y/m/d', strtotime("-$i days"));
+    $date = normalize_date('Y/m/d', strtotime("-$i days"));
     $sales_labels[] = $date;
     $stmt = $db->prepare("SELECT COALESCE(SUM(total_amount), 0) FROM sales_invoices WHERE invoice_date_sh = ?");
     $stmt->execute([$date]);
     $sales_data[] = (int)$stmt->fetchColumn();
 }
 
-// 2. توزیع وضعیت تعمیرات
+// ==================== 2. توزیع وضعیت تعمیرات ====================
 $status_counts = [];
 $status_labels = ['در انتظار', 'در حال تعمیر', 'انتظار قطعه', 'آماده تحویل', 'تحویل شده'];
 $status_keys = ['pending', 'in_progress', 'waiting_part', 'ready', 'delivered'];
@@ -31,7 +56,7 @@ foreach ($status_keys as $key) {
     $status_counts[] = (int)$stmt->fetchColumn();
 }
 
-// 3. محصولات پرفروش (بر اساس تعداد فروش)
+// ==================== 3. محصولات پرفروش (همه‌ی زمان) ====================
 $top_products = $db->query("
     SELECT p.name, SUM(si.quantity) as total_qty
     FROM sales_items si
@@ -41,35 +66,44 @@ $top_products = $db->query("
     LIMIT 5
 ")->fetchAll();
 
-// 4. آمار کلی پیشرفته
+// ==================== 4. آمار کلی (بدون وابستگی به تاریخ) ====================
 $total_products = $db->query("SELECT COUNT(*) FROM products")->fetchColumn();
 $stmt = $db->prepare("SELECT COUNT(*) FROM customers WHERE type = 'customer'");
 $stmt->execute();
-$total_customers = $stmt->fetchColumn();
-$today = jdate('Y/m/d');
-$stmt = $db->prepare("SELECT COALESCE(SUM(total_amount), 0) FROM sales_invoices WHERE invoice_date_sh = ?");
-$stmt->execute([$today]);
-$today_sales = (int)$stmt->fetchColumn();
-$stmt = $db->prepare("SELECT COALESCE(SUM(total_cost), 0) FROM repair_tickets WHERE received_date_sh = ?");
-$stmt->execute([$today]);
-$today_repair = (int)$stmt->fetchColumn();
-$stmt = $db->prepare("SELECT COUNT(*) FROM repair_tickets WHERE status = 'ready'");
-$stmt->execute();
-$ready_repairs = (int)$stmt->fetchColumn();
+$total_customers = (int)$stmt->fetchColumn();
+
 $stmt = $db->prepare("SELECT COUNT(*) FROM products WHERE current_stock <= min_stock_alert");
 $stmt->execute();
 $low_stock = (int)$stmt->fetchColumn();
 
-// ** آمار جدید: اجرت روز و سود فروش روز **
+$stmt = $db->prepare("SELECT COUNT(*) FROM repair_tickets WHERE status = 'ready'");
+$stmt->execute();
+$ready_repairs = (int)$stmt->fetchColumn();
+
+// ==================== 5. فروش امروز (بر اساس invoice_date_sh) ====================
+$stmt = $db->prepare("SELECT COALESCE(SUM(total_amount), 0) FROM sales_invoices WHERE invoice_date_sh = ?");
+$stmt->execute([$today_sh]);
+$today_sales = (int)$stmt->fetchColumn();
+
+// ==================== 6. تعمیرات امروز (بر اساس received_date_sh) ====================
+$stmt = $db->prepare("SELECT COALESCE(SUM(total_cost), 0) FROM repair_tickets WHERE received_date_sh = ?");
+$stmt->execute([$today_sh]);
+$today_repair = (int)$stmt->fetchColumn();
+
+// ==================== 7. اجرت روز (بر اساس تاریخ ثبت آیتم در repair_items، نه تاریخ دریافت دستگاه) ====================
 $stmt_labor = $db->prepare("
     SELECT COALESCE(SUM(ri.total_price), 0)
     FROM repair_items ri
-    JOIN repair_tickets rt ON rt.id = ri.ticket_id
-    WHERE ri.item_type = 'labor' AND rt.received_date_sh = ?
+    WHERE ri.item_type = 'labor' 
+    AND ri.created_at BETWEEN :start_date AND :end_date
 ");
-$stmt_labor->execute([$today]);
+$stmt_labor->execute([
+    ':start_date' => $start_date_mysql,
+    ':end_date'   => $end_date_mysql
+]);
 $daily_labor = (int)$stmt_labor->fetchColumn();
 
+// ==================== 8. سود فروش روز (بر اساس invoice_date_sh) ====================
 $stmt_profit = $db->prepare("
     SELECT COALESCE(SUM(si.quantity * (si.unit_price - p.purchase_price)), 0)
     FROM sales_items si
@@ -77,9 +111,10 @@ $stmt_profit = $db->prepare("
     JOIN sales_invoices si_inv ON si_inv.id = si.sales_invoice_id
     WHERE si_inv.invoice_date_sh = ?
 ");
-$stmt_profit->execute([$today]);
+$stmt_profit->execute([$today_sh]);
 $daily_profit = (int)$stmt_profit->fetchColumn();
 
+// ==================== پیام تبریک / هشدار برای اجرت روز ====================
 $labor_message = '';
 $labor_alert_class = '';
 if ($daily_labor >= 3000000) {
@@ -92,7 +127,7 @@ if ($daily_labor >= 3000000) {
 ?>
 
 <style>
-    /* استایل‌های گرادیان مدرن برای کارت‌های آماری (بدون وابستگی خارجی) */
+    /* استایل‌های گرادیان مدرن برای کارت‌های آماری */
     .bg-gradient-primary {
         background: linear-gradient(135deg, #0ea5e9 0%, #3b82f6 100%) !important;
     }
@@ -105,7 +140,6 @@ if ($daily_labor >= 3000000) {
     .bg-gradient-danger {
         background: linear-gradient(135deg, #ef4444 0%, #dc2626 100%) !important;
     }
-    /* دایره آیکون داخل کارت */
     .bg-white-20 {
         background-color: rgba(255, 255, 255, 0.2);
         border-radius: 50%;
@@ -120,7 +154,6 @@ if ($daily_labor >= 3000000) {
         background-color: rgba(255, 255, 255, 0.3);
         transform: scale(1.05);
     }
-    /* رفع تداخل با استایل قبلی modern-card */
     .modern-card.bg-gradient-primary,
     .modern-card.bg-gradient-success,
     .modern-card.bg-gradient-warning,
@@ -144,7 +177,6 @@ if ($daily_labor >= 3000000) {
 </div>
 
 <div class="row">
-    <!-- کارت فروش امروز -->
     <div class="col-lg-3 col-md-6 mb-4">
         <div class="modern-card bg-gradient-primary text-white h-100">
             <div class="card-body">
@@ -160,7 +192,6 @@ if ($daily_labor >= 3000000) {
             </div>
         </div>
     </div>
-    <!-- کارت تعمیرات امروز -->
     <div class="col-lg-3 col-md-6 mb-4">
         <div class="modern-card bg-gradient-success text-white h-100">
             <div class="card-body">
@@ -176,7 +207,6 @@ if ($daily_labor >= 3000000) {
             </div>
         </div>
     </div>
-    <!-- کارت آماده تحویل -->
     <div class="col-lg-3 col-md-6 mb-4">
         <div class="modern-card bg-gradient-warning text-white h-100">
             <div class="card-body">
@@ -192,7 +222,6 @@ if ($daily_labor >= 3000000) {
             </div>
         </div>
     </div>
-    <!-- کارت موجودی بحرانی -->
     <div class="col-lg-3 col-md-6 mb-4">
         <div class="modern-card bg-gradient-danger text-white h-100">
             <div class="card-body">
@@ -211,7 +240,6 @@ if ($daily_labor >= 3000000) {
 </div>
 
 <div class="row">
-    <!-- کارت اجرت روز -->
     <div class="col-lg-6 mb-4">
         <div class="modern-card h-100">
             <div class="card-header-custom d-flex justify-content-between align-items-center">
@@ -220,7 +248,7 @@ if ($daily_labor >= 3000000) {
             </div>
             <div class="card-body text-center">
                 <h2 class="display-5 fw-bold text-primary"><?= number_format($daily_labor) ?> <small class="fs-4">تومان</small></h2>
-                <p class="text-muted mt-3">جمع کل اجرت تعمیرات امروز</p>
+                <p class="text-muted mt-3">جمع کل اجرت تعمیراتی که امروز در سیستم ثبت شده است (مستقل از تاریخ تحویل دستگاه)</p>
                 <div class="progress mt-3" style="height: 8px;">
                     <div class="progress-bar bg-primary" role="progressbar" style="width: <?= min(100, ($daily_labor / 3000000) * 100) ?>%" aria-valuenow="<?= $daily_labor ?>" aria-valuemin="0" aria-valuemax="3000000"></div>
                 </div>
@@ -228,7 +256,6 @@ if ($daily_labor >= 3000000) {
             </div>
         </div>
     </div>
-    <!-- کارت سود فروش روز -->
     <div class="col-lg-6 mb-4">
         <div class="modern-card h-100">
             <div class="card-header-custom d-flex justify-content-between align-items-center">
@@ -245,7 +272,6 @@ if ($daily_labor >= 3000000) {
 </div>
 
 <div class="row">
-    <!-- نمودار فروش 7 روز اخیر -->
     <div class="col-md-8 mb-4">
         <div class="modern-card h-100">
             <div class="card-header-custom"><i class="fas fa-chart-line"></i> روند فروش (۷ روز اخیر)</div>
@@ -254,7 +280,6 @@ if ($daily_labor >= 3000000) {
             </div>
         </div>
     </div>
-    <!-- نمودار وضعیت تعمیرات -->
     <div class="col-md-4 mb-4">
         <div class="modern-card h-100">
             <div class="card-header-custom"><i class="fas fa-chart-pie"></i> وضعیت تعمیرات</div>
@@ -266,7 +291,6 @@ if ($daily_labor >= 3000000) {
 </div>
 
 <div class="row">
-    <!-- جدول محصولات پرفروش -->
     <div class="col-md-6 mb-4">
         <div class="modern-card h-100">
             <div class="card-header-custom"><i class="fas fa-trophy"></i> ۵ کالای پرفروش</div>
@@ -281,7 +305,7 @@ if ($daily_labor >= 3000000) {
                                 <?php foreach ($top_products as $p): ?>
                                     <tr>
                                         <td><i class="fas fa-box text-secondary"></i> <?= htmlspecialchars($p['name']) ?></td>
-                                        <td><span class="badge bg-primary rounded-pill"><?= $p['total_qty'] ?></span> عدد (قطعه) / دستگاه</td>
+                                        <td><span class="badge bg-primary rounded-pill"><?= (int)$p['total_qty'] ?></span> عدد (قطعه) / دستگاه</td>
                                     </tr>
                                 <?php endforeach; ?>
                             <?php else: ?>
@@ -293,7 +317,6 @@ if ($daily_labor >= 3000000) {
             </div>
         </div>
     </div>
-    <!-- اطلاعات انبار و مشتری -->
     <div class="col-md-6 mb-4">
         <div class="modern-card h-100">
             <div class="card-header-custom"><i class="fas fa-info-circle"></i> آمار کلی</div>
@@ -349,19 +372,16 @@ document.addEventListener("DOMContentLoaded", function() {
                 tooltip: {
                     callbacks: {
                         label: function(context) {
-                            var val = context.raw;
-                            return val.toLocaleString() + ' تومان';
+                            return context.raw.toLocaleString() + ' تومان';
                         }
                     }
-                },
-                legend: { position: 'top' }
+                }
             },
             scales: {
                 y: {
-                    ticks: { callback: function(value) { return value.toLocaleString(); } },
+                    ticks: { callback: function(val) { return val.toLocaleString(); } },
                     title: { display: true, text: 'مبلغ (تومان)' }
-                },
-                x: { title: { display: true, text: 'تاریخ' } }
+                }
             }
         }
     });
@@ -381,7 +401,6 @@ document.addEventListener("DOMContentLoaded", function() {
         },
         options: {
             responsive: true,
-            maintainAspectRatio: true,
             plugins: {
                 legend: { position: 'bottom', labels: { font: { size: 12, family: 'Vazirmatn' } } }
             }
