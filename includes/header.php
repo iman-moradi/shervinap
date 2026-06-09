@@ -60,6 +60,8 @@ $menu_groups = [
             ['title' => 'ثبت فاکتور خرید', 'url' => BASE_URL . 'modules/inventory/purchase.php', 'icon' => 'fas fa-shopping-cart'],
             ['title' => 'ثبت فاکتور فروش', 'url' => BASE_URL . 'modules/inventory/sale.php', 'icon' => 'fas fa-money-bill-wave'],
             ['title' => 'فاکتورهای خرید', 'url' => BASE_URL . 'modules/inventory/purchase_invoices.php', 'icon' => 'fas fa-file-invoice'],
+            ['title' => 'فاکتورهای فروش', 'url' => BASE_URL . 'modules/inventory/sales_invoices.php', 'icon' => 'fas fa-file-invoice'],
+            ['title' => 'مرجوعی و تعویض کالا', 'url' => BASE_URL . 'modules/inventory/return_sale.php', 'icon' => 'fas fa-undo-alt'],
             ['title' => 'گزارش گردش موجودی', 'url' => BASE_URL . 'modules/inventory/stock_movements.php', 'icon' => 'fas fa-chart-line']
         ]
     ],
