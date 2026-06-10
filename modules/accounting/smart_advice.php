@@ -348,9 +348,9 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['send_sms_campaign']))
 }
 ?>
 
-<script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.0/dist/chart.umd.min.js"></script>
-<script src="https://cdnjs.cloudflare.com/ajax/libs/html2canvas/1.4.1/html2canvas.min.js"></script>
-<script src="https://cdnjs.cloudflare.com/ajax/libs/jspdf/2.5.1/jspdf.umd.min.js"></script>
+<script src="<?= BASE_URL ?>assets/js/chart.umd.min.js"></script>
+<script src="<?= BASE_URL ?>assets/js/html2canvas.min.js"></script>
+<script src="<?= BASE_URL ?>assets/js/jspdf.umd.min.js"></script>
 <style>
     .kpi-card { border-radius: 15px; padding: 15px; text-align: center; background: #f8f9fc; transition: 0.3s; border: 1px solid #e3e6f0; }
     .kpi-card:hover { transform: translateY(-5px); box-shadow: 0 0.5rem 1rem rgba(0,0,0,0.1); }

@@ -1,4 +1,8 @@
 ﻿<?php
+// پاک کردن هرگونه خروجی قبلی و شروع بافر
+ob_start();
+ob_clean();
+
 $page_title = 'گزارش کامل تمام تراکنش‌های مالی';
 require_once '../../includes/header.php';
 
@@ -24,6 +28,8 @@ $sql = "SELECT t.*, a.account_name, c.name as category_name,
             WHEN t.ref_type = 'loan_installment' THEN 'پرداخت قسط وام'
             WHEN t.ref_type = 'credit_sale' THEN 'وصول نسیه'
             WHEN t.ref_type = 'other' THEN 'سند دستی'
+            WHEN t.ref_type = 'refund' THEN 'برگشت از فروش'
+            WHEN t.ref_type = 'exchange_settlement' THEN 'تسویه تعویض'
             ELSE t.ref_type
         END as ref_type_persian
         FROM transactions t
@@ -66,60 +72,87 @@ foreach ($transactions as $t) {
 $net_profit = $total_income - $total_expense;
 ?>
 
+<style>
+    .filter-box {
+        background: #f8f9fa;
+        border-radius: 10px;
+        padding: 15px;
+        margin-bottom: 20px;
+    }
+    /* اسکرول افقی برای جدول */
+    .table-scroll {
+        overflow-x: auto;
+        -webkit-overflow-scrolling: touch;
+        width: 100%;
+    }
+    .table-scroll table {
+        min-width: 800px;
+        width: 100%;
+        white-space: nowrap;
+    }
+    @media (max-width: 768px) {
+        .filter-box .row > div {
+            margin-bottom: 10px;
+        }
+    }
+</style>
+
 <div class="card">
     <div class="card-header bg-primary text-white">
         📊 گزارش کامل تمام تراکنش‌های مالی
     </div>
     <div class="card-body">
         <!-- فرم فیلتر -->
-        <form method="get" class="row g-3 mb-4">
-            <div class="col-md-3">
-                <label>نوع تراکنش</label>
-                <select name="filter_type" class="form-select">
-                    <option value="all" <?= $filter_type == 'all' ? 'selected' : '' ?>>همه</option>
-                    <option value="income" <?= $filter_type == 'income' ? 'selected' : '' ?>>درآمدها</option>
-                    <option value="expense" <?= $filter_type == 'expense' ? 'selected' : '' ?>>هزینه‌ها</option>
-                </select>
-            </div>
-            <div class="col-md-3">
-                <label>از تاریخ</label>
-                <input type="text" name="from_date" class="form-control" placeholder="1402/01/01" value="<?= htmlspecialchars($from_date) ?>">
-            </div>
-            <div class="col-md-3">
-                <label>تا تاریخ</label>
-                <input type="text" name="to_date" class="form-control" placeholder="1402/12/29" value="<?= htmlspecialchars($to_date) ?>">
-            </div>
-            <div class="col-md-3 align-self-end">
-                <button type="submit" class="btn btn-primary">فیلتر</button>
-                <a href="all_transactions.php" class="btn btn-secondary">پاک کردن</a>
+        <form method="get" class="filter-box">
+            <div class="row g-3">
+                <div class="col-md-3">
+                    <label class="form-label">نوع تراکنش</label>
+                    <select name="filter_type" class="form-select">
+                        <option value="all" <?= $filter_type == 'all' ? 'selected' : '' ?>>همه</option>
+                        <option value="income" <?= $filter_type == 'income' ? 'selected' : '' ?>>درآمدها</option>
+                        <option value="expense" <?= $filter_type == 'expense' ? 'selected' : '' ?>>هزینه‌ها</option>
+                    </select>
+                </div>
+                <div class="col-md-3">
+                    <label class="form-label">از تاریخ</label>
+                    <input type="text" name="from_date" class="form-control" placeholder="1402/01/01" value="<?= htmlspecialchars($from_date) ?>">
+                </div>
+                <div class="col-md-3">
+                    <label class="form-label">تا تاریخ</label>
+                    <input type="text" name="to_date" class="form-control" placeholder="1402/12/29" value="<?= htmlspecialchars($to_date) ?>">
+                </div>
+                <div class="col-md-3 align-self-end">
+                    <button type="submit" class="btn btn-primary w-100">🔍 فیلتر</button>
+                    <a href="all_transactions.php" class="btn btn-secondary w-100 mt-2">🗑️ پاک کردن</a>
+                </div>
             </div>
         </form>
-        
+
         <!-- کارت‌های خلاصه -->
-        <div class="row mb-4">
+        <div class="row mb-4 g-3">
             <div class="col-md-4">
-                <div class="alert alert-success text-center">
+                <div class="alert alert-success text-center mb-0">
                     <h5>💰 کل درآمدها</h5>
                     <h3><?= number_format($total_income) ?> تومان</h3>
                 </div>
             </div>
             <div class="col-md-4">
-                <div class="alert alert-danger text-center">
+                <div class="alert alert-danger text-center mb-0">
                     <h5>💸 کل هزینه‌ها</h5>
                     <h3><?= number_format($total_expense) ?> تومان</h3>
                 </div>
             </div>
             <div class="col-md-4">
-                <div class="alert <?= $net_profit >= 0 ? 'alert-info' : 'alert-warning' ?> text-center">
+                <div class="alert <?= $net_profit >= 0 ? 'alert-info' : 'alert-warning' ?> text-center mb-0">
                     <h5>📈 سود خالص</h5>
                     <h3><?= number_format($net_profit) ?> تومان</h3>
                 </div>
             </div>
         </div>
-        
-        <!-- جدول تراکنش‌ها -->
-        <div class="table-responsive">
-            <table class="table table-bordered table-striped table-hover" id="transactionsTable">
+
+        <!-- جدول با اسکرول افقی (بدون DataTables) -->
+        <div class="table-scroll">
+            <table class="table table-bordered table-striped table-hover">
                 <thead class="table-dark">
                     <tr>
                         <th>ردیف</th>
@@ -133,46 +166,35 @@ $net_profit = $total_income - $total_expense;
                     </tr>
                 </thead>
                 <tbody>
-                    <?php $counter = 1; ?>
-                    <?php foreach ($transactions as $t): ?>
+                    <?php if (count($transactions) == 0): ?>
+                        <tr><td colspan="8" class="text-center">هیچ تراکنشی یافت نشد</td></tr>
+                    <?php else: ?>
+                        <?php $counter = 1; ?>
+                        <?php foreach ($transactions as $t): ?>
                         <tr>
                             <td><?= $counter++ ?></td>
                             <td><?= htmlspecialchars($t['transaction_date_sh']) ?></td>
                             <td><?= htmlspecialchars($t['account_name'] ?? '---') ?></td>
                             <td><?= $t['type'] == 'income' ? '<span class="badge bg-success">واریز</span>' : '<span class="badge bg-danger">برداشت</span>' ?></td>
-                            <td><?= number_format($t['amount']) ?> تومان</td
-                            <td><?= htmlspecialchars($t['category_name'] ?? '---') ?></td
-                            <td><?= htmlspecialchars($t['description']) ?></td
-                            <td><?= htmlspecialchars($t['ref_type_persian']) ?> (ID: <?= $t['ref_id'] ?>)</td
+                            <td><?= number_format($t['amount']) ?> تومان</td>
+                            <td><?= htmlspecialchars($t['category_name'] ?? '---') ?></td>
+                            <td><?= htmlspecialchars($t['description']) ?></td>
+                            <td><?= htmlspecialchars($t['ref_type_persian']) ?> (ID: <?= $t['ref_id'] ?>)</td>
                         </tr>
-                    <?php endforeach; ?>
-                    <?php if (count($transactions) == 0): ?>
-                        <tr><td colspan="8" class="text-center">هیچ تراکنشی یافت نشد</td></tr>
+                        <?php endforeach; ?>
                     <?php endif; ?>
                 </tbody>
             </table>
         </div>
-        
+
         <div class="alert alert-secondary mt-3">
             <i class="fas fa-info-circle"></i> توجه: این گزارش شامل تمام تراکنش‌های مالی از همه بخش‌ها (فروش، خرید، تعمیرات، وام‌ها و ...) می‌باشد.
         </div>
     </div>
 </div>
 
-<link rel="stylesheet" href="https://cdn.datatables.net/1.13.4/css/dataTables.bootstrap5.min.css">
-<script src="https://cdn.datatables.net/1.13.4/js/jquery.dataTables.min.js"></script>
-<script src="https://cdn.datatables.net/1.13.4/js/dataTables.bootstrap5.min.js"></script>
-<script>
-$(document).ready(function() {
-    $('#transactionsTable').DataTable({
-        "language": {
-            "url": "//cdn.datatables.net/plug-ins/1.13.4/i18n/fa.json"
-        },
-        "order": [[1, "desc"]],
-        "pageLength": 25,
-        "responsive": true
-    });
-});
-</script>
-
-<?php require_once '../../includes/footer.php'; ?>
+<?php
+// ارسال بافر و پاک کردن خروجی‌های اضافی
+ob_end_flush();
+require_once '../../includes/footer.php';
+?>
