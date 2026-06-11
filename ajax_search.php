@@ -67,7 +67,6 @@ try {
             break;
 
         case 'get_product_by_id':
-            // برای ویرایش فاکتور - دریافت اطلاعات محصول با ID
             $product_id = (int)$query;
             if ($product_id > 0) {
                 $stmt = $db->prepare("SELECT id, name, current_stock, sale_price, purchase_price FROM products WHERE id = ?");
@@ -84,7 +83,6 @@ try {
             break;
 
         case 'suppliers':
-            // جستجو در تأمین‌کنندگان و همکاران (برای فاکتور خرید)
             $sql = "SELECT id, fullname, mobile, phone, address 
                     FROM customers 
                     WHERE type IN ('supplier', 'partner') 
@@ -96,11 +94,21 @@ try {
             break;
             
         case 'all_customers':
-            // جستجو در همه مشتریان (برای فروش و تعمیرات)
             $sql = "SELECT id, fullname, mobile, phone, address 
                     FROM customers 
                     WHERE (fullname LIKE :q OR mobile LIKE :q) 
                     LIMIT 15";
+            $stmt = $db->prepare($sql);
+            $stmt->execute([':q' => "%$query%"]);
+            $results = $stmt->fetchAll();
+            break;
+
+        // ========== نوع جدید برای جستجوی مشتری با موبایل (فروش) ==========
+        case 'customers_by_mobile':
+            $sql = "SELECT id, fullname, mobile, phone, address 
+                    FROM customers 
+                    WHERE type = 'customer' AND mobile LIKE :q 
+                    ORDER BY fullname LIMIT 20";
             $stmt = $db->prepare($sql);
             $stmt->execute([':q' => "%$query%"]);
             $results = $stmt->fetchAll();
@@ -115,7 +123,6 @@ try {
                 exit;
             }
             
-            // تبدیل اعداد فارسی به انگلیسی در تاریخ
             $persian_numbers = ['۰', '۱', '۲', '۳', '۴', '۵', '۶', '۷', '۸', '۹'];
             $english_numbers = ['0', '1', '2', '3', '4', '5', '6', '7', '8', '9'];
             $received_date = str_replace($persian_numbers, $english_numbers, $received_date);
@@ -143,9 +150,7 @@ try {
     exit;
 }
 
-// پاک کردن بافر و ارسال JSON خالص
 ob_clean();
 header('Content-Type: application/json; charset=utf-8');
 echo json_encode($results, JSON_UNESCAPED_UNICODE);
 exit;
-?>
