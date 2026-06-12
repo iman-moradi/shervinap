@@ -1,4 +1,4 @@
-﻿<?php
+<?php
 ob_start();
 $page_title = 'جزئیات تعمیر';
 require_once '../../includes/header.php';
@@ -25,6 +25,7 @@ if (!$ticket) {
     exit;
 }
 
+// پردازش فرم افزودن اجرت/قطعه معمولی
 if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['add_item'])) {
     $item_type = $_POST['item_type'];
     $description = trim($_POST['description']);
@@ -87,7 +88,6 @@ $status_map = [
     'ready' => 'آماده تحویل',
     'delivered' => 'تحویل شده'
 ];
-// نقشه کلاس‌های بوت‌استرپ برای وضعیت‌ها (جایگزین match)
 $status_badge_class_map = [
     'pending' => 'badge-pending',
     'in_progress' => 'badge-in_progress',
@@ -99,6 +99,7 @@ $current_status_class = $status_badge_class_map[$ticket['status']] ?? '';
 ?>
 
 <style>
+    /* استایل‌های موجود قبلی + استایل پاپ‌آپ سفارشی */
     .info-grid {
         display: grid;
         grid-template-columns: repeat(auto-fill, minmax(250px, 1fr));
@@ -109,9 +110,6 @@ $current_status_class = $status_badge_class_map[$ticket['status']] ?? '';
     }
     .modern-card .card-body {
         padding: 1rem !important;
-    }
-    .mb-3 {
-        margin-bottom: 1.5rem !important;
     }
     .info-item {
         display: flex;
@@ -146,6 +144,118 @@ $current_status_class = $status_badge_class_map[$ticket['status']] ?? '';
     .suggestion-item:hover {
         background-color: #f1f5f9;
     }
+
+    /* ========== پاپ‌آپ سفارشی مدرن ========== */
+    .custom-popup-overlay {
+        position: fixed;
+        top: 0;
+        left: 0;
+        width: 100%;
+        height: 100%;
+        background: rgba(0,0,0,0.5);
+        backdrop-filter: blur(4px);
+        z-index: 10000;
+        display: none;
+        justify-content: center;
+        align-items: center;
+    }
+    .custom-popup-container {
+        background: #fff;
+        border-radius: 28px;
+        width: 90%;
+        max-width: 750px;
+        max-height: 85vh;
+        overflow-y: auto;
+        box-shadow: 0 25px 50px -12px rgba(0,0,0,0.25);
+        animation: fadeInScale 0.2s ease;
+    }
+    .custom-popup-header {
+        padding: 1.2rem 1.5rem;
+        border-bottom: 2px solid #0ea5e9;
+        background: #f8fafc;
+        border-radius: 28px 28px 0 0;
+        display: flex;
+        justify-content: space-between;
+        align-items: center;
+        position: sticky;
+        top: 0;
+        background: #fff;
+        z-index: 1;
+    }
+    .custom-popup-header h5 {
+        margin: 0;
+        font-weight: 600;
+        color: #0f172a;
+    }
+    .custom-popup-close {
+        background: none;
+        border: none;
+        font-size: 1.8rem;
+        cursor: pointer;
+        color: #94a3b8;
+        transition: color 0.2s;
+        line-height: 1;
+    }
+    .custom-popup-close:hover {
+        color: #ef4444;
+    }
+    .custom-popup-body {
+        padding: 1.5rem;
+    }
+    .service-search-box {
+        margin-bottom: 1.2rem;
+        position: relative;
+    }
+    .service-search-box i {
+        position: absolute;
+        right: 12px;
+        top: 12px;
+        color: #94a3b8;
+    }
+    .service-search-box input {
+        width: 100%;
+        padding: 10px 35px 10px 15px;
+        border-radius: 40px;
+        border: 1px solid #e2e8f0;
+        font-size: 0.9rem;
+    }
+    .services-grid {
+        display: grid;
+        grid-template-columns: repeat(auto-fill, minmax(280px, 1fr));
+        gap: 1rem;
+    }
+    .service-card {
+        background: #fff;
+        border: 1px solid #eef2f6;
+        border-radius: 20px;
+        padding: 1rem;
+        transition: 0.2s;
+        cursor: pointer;
+    }
+    .service-card:hover {
+        transform: translateY(-3px);
+        box-shadow: 0 8px 20px rgba(0,0,0,0.08);
+        border-color: #cbd5e1;
+    }
+    .service-name {
+        font-weight: 700;
+        margin-bottom: 0.5rem;
+        color: #0f172a;
+    }
+    .service-price {
+        color: #0ea5e9;
+        font-weight: 600;
+        font-size: 0.9rem;
+    }
+    .service-desc {
+        font-size: 0.75rem;
+        color: #64748b;
+        margin-top: 0.3rem;
+    }
+    @keyframes fadeInScale {
+        from { opacity: 0; transform: scale(0.95); }
+        to { opacity: 1; transform: scale(1); }
+    }
 </style>
 
 <div class="row g-4">
@@ -179,18 +289,15 @@ $current_status_class = $status_badge_class_map[$ticket['status']] ?? '';
                     <div class="info-item"><span class="info-label">پرداختی:</span><span class="info-value"><?= to_toman($ticket['paid_amount']) ?></span></div>
                     <div class="info-item"><span class="info-label">تاریخ پذیرش:</span><span class="info-value"><?= htmlspecialchars($ticket['received_date_sh']) ?></span></div>
                 </div>
-                <div class="mt-3 d-flex gap-2">
+                <div class="mt-3 d-flex gap-2 flex-wrap">
                     <a href="edit.php?id=<?= $ticket_id ?>" class="btn btn-modern btn-sm"><i class="fas fa-edit"></i> ویرایش</a>
                     <a href="change_status.php?id=<?= $ticket_id ?>" class="btn btn-outline-secondary btn-sm"><i class="fas fa-exchange-alt"></i> تغییر وضعیت</a>
-					
-					<?php if($ticket['status'] != 'delivered'): ?>
-						<a href="deliver.php?id=<?= $ticket_id ?>" class="btn btn-success btn-sm">تحویل و تسویه</a>
-					<?php endif; ?>
-					
-					<?php if (!in_array($ticket['status'], ['delivered', 'canceled'])): ?>
-						<a href="refund.php?id=<?= $ticket_id ?>" class="btn btn-outline-danger btn-sm">مرجوعی و برگشت</a>
-					<?php endif; ?>
-					
+                    <?php if($ticket['status'] != 'delivered'): ?>
+                        <a href="deliver.php?id=<?= $ticket_id ?>" class="btn btn-success btn-sm">تحویل و تسویه</a>
+                    <?php endif; ?>
+                    <?php if (!in_array($ticket['status'], ['delivered', 'canceled'])): ?>
+                        <a href="refund.php?id=<?= $ticket_id ?>" class="btn btn-outline-danger btn-sm">مرجوعی و برگشت</a>
+                    <?php endif; ?>
                 </div>
             </div>
         </div>
@@ -202,7 +309,7 @@ $current_status_class = $status_badge_class_map[$ticket['status']] ?? '';
                 <i class="fas fa-plus-circle"></i> افزودن اجرت یا قطعه
             </div>
             <div class="card-body">
-                <form method="post" id="addItemForm">
+                <form method="post" id="addItemForm" autocomplete="off">
                     <div class="mb-3">
                         <label>نوع آیتم</label>
                         <select name="item_type" id="itemType" class="form-select" required>
@@ -212,7 +319,7 @@ $current_status_class = $status_badge_class_map[$ticket['status']] ?? '';
                     </div>
                     <div class="mb-3 position-relative">
                         <label>توضیح / جستجوی قطعه</label>
-                        <input type="text" name="description" id="descriptionField" class="form-control" placeholder="توضیح (مثل: تعمیر برد، موتور)" required>
+                        <input type="text" name="description" id="descriptionField" class="form-control" placeholder="توضیح (مثل: تعمیر برد، موتور)" required autocomplete="off">
                         <div id="productSuggestions" class="suggestions-box"></div>
                     </div>
                     <div class="row g-2 mb-3">
@@ -226,7 +333,10 @@ $current_status_class = $status_badge_class_map[$ticket['status']] ?? '';
                         </div>
                     </div>
                     <input type="hidden" name="product_id" id="selectedProductId">
-                    <button type="submit" name="add_item" class="btn btn-modern w-100"><i class="fas fa-save"></i> افزودن</button>
+                    <div class="d-flex gap-2">
+                        <button type="submit" name="add_item" class="btn btn-modern w-100"><i class="fas fa-save"></i> افزودن</button>
+                        <button type="button" id="showServicesBtn" class="btn btn-outline-primary"><i class="fas fa-list-ul"></i> اجرت‌های آماده</button>
+                    </div>
                 </form>
             </div>
         </div>
@@ -264,8 +374,29 @@ $current_status_class = $status_badge_class_map[$ticket['status']] ?? '';
     </div>
 </div>
 
+<!-- پاپ‌آپ سفارشی نمایش اجرت‌های آماده -->
+<div id="servicesPopup" class="custom-popup-overlay">
+    <div class="custom-popup-container">
+        <div class="custom-popup-header">
+            <h5><i class="fas fa-tools"></i> اجرت‌های از پیش تعریف شده</h5>
+            <button type="button" class="custom-popup-close" id="closePopupBtn">&times;</button>
+        </div>
+        <div class="custom-popup-body">
+            <div class="service-search-box">
+                <i class="fas fa-search"></i>
+                <input type="text" id="serviceSearchInput" class="form-control" placeholder="جستجو...">
+            </div>
+            <div id="servicesList" class="services-grid">
+                <div class="text-center py-4"><i class="fas fa-spinner fa-spin"></i> در حال بارگذاری...</div>
+            </div>
+        </div>
+    </div>
+</div>
+
+<script src="https://code.jquery.com/jquery-3.6.0.min.js"></script>
 <script>
 $(document).ready(function(){
+    // ========== کدهای قبلی جستجوی قطعه ==========
     var searchTimeout = null;
     var productSearchInput = $('#descriptionField');
     var suggestionsBox = $('#productSuggestions');
@@ -350,7 +481,93 @@ $(document).ready(function(){
             });
         }
     });
-    
+
+    // ========== پاپ‌آپ و افزودن اجرت‌های آماده ==========
+    var popup = $('#servicesPopup');
+    var servicesList = $('#servicesList');
+    var serviceSearch = $('#serviceSearchInput');
+
+    function showPopup() {
+        popup.fadeIn(200);
+        loadServices();
+    }
+
+    function hidePopup() {
+        popup.fadeOut(200);
+    }
+
+    $('#showServicesBtn').on('click', showPopup);
+    $('#closePopupBtn, #servicesPopup').on('click', function(e) {
+        if (e.target === this) hidePopup();
+    });
+
+    function loadServices() {
+        servicesList.html('<div class="text-center py-4"><i class="fas fa-spinner fa-spin"></i> در حال بارگذاری...</div>');
+        $.ajax({
+            url: '../../ajax_search.php?type=standard_services',
+            type: 'GET',
+            dataType: 'json',
+            success: function(data) {
+                if (data.length === 0) {
+                    servicesList.html('<div class="text-center text-muted">هیچ خدمتی تعریف نشده است.</div>');
+                    return;
+                }
+                var html = '';
+                for (var i=0; i<data.length; i++) {
+                    var s = data[i];
+                    var priceFormatted = new Intl.NumberFormat().format(s.price);
+                    html += '<div class="service-card" data-id="'+s.id+'" data-name="'+escapeHtml(s.name)+'" data-price="'+s.price+'">';
+                    html += '<div class="service-name">'+escapeHtml(s.name)+'</div>';
+                    html += '<div class="service-price">'+priceFormatted+' تومان</div>';
+                    if (s.description) html += '<div class="service-desc">'+escapeHtml(s.description)+'</div>';
+                    html += '</div>';
+                }
+                servicesList.html(html);
+                attachServiceClick();
+            },
+            error: function() {
+                servicesList.html('<div class="alert alert-danger">خطا در بارگذاری اطلاعات</div>');
+            }
+        });
+    }
+
+    function attachServiceClick() {
+        $('.service-card').off('click').on('click', function() {
+            var card = $(this);
+            var serviceId = card.data('id');
+            var serviceName = card.data('name');
+            var servicePrice = card.data('price');
+            if (confirm('آیا اجرت "' + serviceName + '" با قیمت ' + new Intl.NumberFormat().format(servicePrice) + ' تومان به لیست اضافه شود؟')) {
+                $.ajax({
+                    url: 'add_service_to_ticket.php',
+                    type: 'POST',
+                    data: { ticket_id: <?= $ticket_id ?>, service_id: serviceId, quantity: 1 },
+                    dataType: 'json',
+                    success: function(res) {
+                        if (res.success) {
+                            alert(res.message);
+                            location.reload();
+                        } else {
+                            alert('خطا: ' + res.error);
+                        }
+                    },
+                    error: function() {
+                        alert('خطا در ارتباط با سرور');
+                    }
+                });
+            }
+        });
+    }
+
+    serviceSearch.on('keyup', function() {
+        var val = $(this).val().toLowerCase().trim();
+        $('.service-card').each(function() {
+            var name = $(this).data('name').toLowerCase();
+            $(this).toggle(name.indexOf(val) > -1);
+        });
+    });
+
+    // توابع کمکی
     function escapeHtml(str) {
         if (!str) return '';
         return String(str).replace(/[&<>]/g, function(m) {
@@ -366,6 +583,8 @@ $(document).ready(function(){
     }
 });
 </script>
+
 <?php 
 ob_end_flush();
-require_once '../../includes/footer.php'; ?>
+require_once '../../includes/footer.php'; 
+?>

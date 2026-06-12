@@ -47,26 +47,13 @@ function has_permission($user_id, $permission_key) {
     }
 }
 
-
-
-
-
 /**
  * دریافت مجموع اجرت تعمیرات برای یک تاریخ مشخص (از جدول repair_items)
  * @param PDO $db
  * @param string $date_sh تاریخ شمسی (فرمت Y/m/d)
  * @return int
  */
-function get_daily_labor_cost($db, $date_sh) {
-    $stmt = $db->prepare("
-        SELECT COALESCE(SUM(ri.total_price), 0)
-        FROM repair_items ri
-        JOIN repair_tickets rt ON rt.id = ri.ticket_id
-        WHERE ri.item_type = 'labor' AND rt.received_date_sh = ?
-    ");
-    $stmt->execute([$date_sh]);
-    return (int)$stmt->fetchColumn();
-}
+
 
 /**
  * دریافت سود فروش برای یک تاریخ مشخص (بر اساس purchase_price محصولات)
@@ -86,17 +73,11 @@ function get_daily_sales_profit($db, $date_sh) {
     return (int)$stmt->fetchColumn();
 }
 
-
-
-
-
-
 function get_unpaid_purchase_invoices_count($db) {
     $stmt = $db->prepare("SELECT COUNT(*) FROM purchase_invoices WHERE payment_status IN ('unpaid', 'partial')");
     $stmt->execute();
     return (int)$stmt->fetchColumn();
 }
-
 
 // تابع ارسال پیامک (نمونه اولیه - بعداً با API واقعی جایگزین می‌شود)
 function send_sms($mobile, $message) {
@@ -169,7 +150,6 @@ function load_appearance_settings() {
     }
     file_put_contents($css_path, $css);
 }
-
 
 function check_and_send_reminders() {
     global $db;
@@ -265,6 +245,22 @@ function display_persian_date($date_str) {
     return jdate('Y/m/d', $timestamp);
 }
 
+function get_daily_labor_cost($db, $date_sh) {
+    // تبدیل تاریخ شمسی به تایم‌استمپ ابتدا و انتهای روز
+    $start_timestamp = jalali_to_gregorian_timestamp($date_sh);
+    $end_timestamp = $start_timestamp + 86399; // 23:59:59
+    $start_date = date('Y-m-d H:i:s', $start_timestamp);
+    $end_date = date('Y-m-d H:i:s', $end_timestamp);
+    
+    $stmt = $db->prepare("
+        SELECT COALESCE(SUM(ri.total_price), 0)
+        FROM repair_items ri
+        WHERE ri.item_type = 'labor' 
+        AND ri.created_at BETWEEN :start AND :end
+    ");
+    $stmt->execute([':start' => $start_date, ':end' => $end_date]);
+    return (int)$stmt->fetchColumn();
+}
 
 
 // فراخوانی تابع در ابتدای هر صفحه (به جز صفحات تنظیمات که ممکن دوباره بنویسند)

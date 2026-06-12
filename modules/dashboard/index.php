@@ -10,11 +10,3 @@ $stmt2 = $db->prepare("SELECT COUNT(*) FROM repair_tickets WHERE status='waiting
 $stmt2->execute();
 $waiting_parts = $stmt2->fetchColumn();
 ?>
-
-<?php if ($urgent_overdue > 0): ?>
-<div class="alert alert-danger"><?= (int)$urgent_overdue ?> دستگاه با اولویت فوری نیاز به توجه فوری دارند.</div>
-<?php endif; ?>
-
-<?php if ($waiting_parts > 0): ?>
-<div class="alert alert-warning"><?= (int)$waiting_parts ?> دستگاه در انتظار قطعه هستند.</div>
-<?php endif; ?>

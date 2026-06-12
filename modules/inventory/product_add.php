@@ -1,6 +1,6 @@
 <?php
 // ==================== ابتدا شرط‌های AJAX ====================
-if (isset($_GET['generate_sku']) || isset($_GET['search_product']) || isset($_GET['load_product'])) {
+if (isset($_GET['generate_sku']) || isset($_GET['search_product']) || isset($_GET['load_product']) || isset($_POST['add_category_ajax'])) {
     require_once __DIR__ . '/../../config/database.php';
     require_once __DIR__ . '/../../includes/jdf.php';
     session_start();
@@ -25,6 +25,38 @@ if (isset($_GET['generate_sku']) || isset($_GET['search_product']) || isset($_GE
         $row = $stmt->fetch();
         $next = ($row && $row['max_num'] !== null) ? $row['max_num'] + 1 : 1;
         return $prefix . '-' . str_pad($next, 3, '0', STR_PAD_LEFT);
+    }
+    
+    // پردازش AJAX برای افزودن دسته‌بندی
+    if (isset($_POST['add_category_ajax'])) {
+        header('Content-Type: application/json');
+        $name = trim($_POST['name'] ?? '');
+        $parent_id = !empty($_POST['parent_id']) ? (int)$_POST['parent_id'] : null;
+        
+        if (empty($name)) {
+            echo json_encode(['success' => false, 'error' => 'نام دسته الزامی است.']);
+            exit;
+        }
+        
+        $check = $db->prepare("SELECT id FROM product_categories WHERE name = ?");
+        $check->execute([$name]);
+        if ($check->fetch()) {
+            echo json_encode(['success' => false, 'error' => 'این دسته قبلاً ثبت شده است.']);
+            exit;
+        }
+        
+        $stmt = $db->prepare("INSERT INTO product_categories (name, parent_id) VALUES (?, ?)");
+        if ($stmt->execute([$name, $parent_id])) {
+            $newId = $db->lastInsertId();
+            echo json_encode([
+                'success' => true,
+                'id' => $newId,
+                'name' => $name
+            ]);
+        } else {
+            echo json_encode(['success' => false, 'error' => 'خطا در ثبت دسته']);
+        }
+        exit;
     }
     
     if (isset($_GET['generate_sku'])) {
@@ -115,7 +147,9 @@ $categories = $db->query("SELECT id, name FROM product_categories ORDER BY name"
 $default_type = 'new_part';
 $generated_sku = generateSkuForPage($default_type, $db);
 ?>
+
 <style>
+    /* استایل جستجوی محصول */
     .suggestions-box {
         position: absolute;
         z-index: 1000;
@@ -134,6 +168,183 @@ $generated_sku = generateSkuForPage($default_type, $db);
     }
     .suggestion-item:hover {
         background-color: #f0f0f0;
+    }
+    
+    /* ========== استایل مودال سفارشی (بدون بوتاسترپ) ========== */
+    .custom-modal {
+        display: none;
+        position: fixed;
+        z-index: 9999;
+        left: 0;
+        top: 0;
+        width: 100%;
+        height: 100%;
+        background-color: rgba(0,0,0,0.5);
+        backdrop-filter: blur(3px);
+    }
+    
+    .custom-modal-content {
+        background-color: #fff;
+        margin: 10% auto;
+        width: 90%;
+        max-width: 500px;
+        border-radius: 16px;
+        box-shadow: 0 20px 35px rgba(0,0,0,0.2);
+        animation: modalSlideIn 0.3s ease;
+    }
+    
+    @keyframes modalSlideIn {
+        from {
+            transform: translateY(-50px);
+            opacity: 0;
+        }
+        to {
+            transform: translateY(0);
+            opacity: 1;
+        }
+    }
+    
+    .custom-modal-header {
+        padding: 18px 20px;
+        border-bottom: 1px solid #e9ecef;
+        display: flex;
+        justify-content: space-between;
+        align-items: center;
+    }
+    
+    .custom-modal-header h4 {
+        margin: 0;
+        font-size: 1.2rem;
+        font-weight: 600;
+    }
+    
+    .custom-modal-close {
+        background: none;
+        border: none;
+        font-size: 24px;
+        cursor: pointer;
+        color: #6c757d;
+        transition: color 0.2s;
+    }
+    
+    .custom-modal-close:hover {
+        color: #dc3545;
+    }
+    
+    .custom-modal-body {
+        padding: 20px;
+    }
+    
+    .custom-modal-footer {
+        padding: 15px 20px;
+        border-top: 1px solid #e9ecef;
+        display: flex;
+        justify-content: flex-end;
+        gap: 10px;
+    }
+    
+    .btn-custom-primary {
+        background-color: #0ea5e9;
+        color: white;
+        border: none;
+        padding: 8px 20px;
+        border-radius: 8px;
+        cursor: pointer;
+        transition: background-color 0.2s;
+    }
+    
+    .btn-custom-primary:hover {
+        background-color: #0284c7;
+    }
+    
+    .btn-custom-secondary {
+        background-color: #e2e8f0;
+        color: #334155;
+        border: none;
+        padding: 8px 20px;
+        border-radius: 8px;
+        cursor: pointer;
+        transition: background-color 0.2s;
+    }
+    
+    .btn-custom-secondary:hover {
+        background-color: #cbd5e1;
+    }
+    
+    .btn-add-category {
+        background: none;
+        border: none;
+        color: #0ea5e9;
+        cursor: pointer;
+        font-size: 0.85rem;
+        margin-top: 5px;
+        padding: 0;
+    }
+    
+    .btn-add-category:hover {
+        text-decoration: underline;
+    }
+    
+    .form-group-custom {
+        margin-bottom: 15px;
+    }
+    
+    .form-group-custom label {
+        display: block;
+        margin-bottom: 6px;
+        font-weight: 500;
+        color: #334155;
+    }
+    
+    .form-group-custom input,
+    .form-group-custom select {
+        width: 100%;
+        padding: 8px 12px;
+        border: 1px solid #cbd5e1;
+        border-radius: 8px;
+        font-size: 14px;
+    }
+    
+    .form-group-custom input:focus,
+    .form-group-custom select:focus {
+        outline: none;
+        border-color: #0ea5e9;
+        box-shadow: 0 0 0 3px rgba(14,165,233,0.1);
+    }
+    
+    /* پیام toast */
+    .custom-toast {
+        position: fixed;
+        bottom: 20px;
+        right: 20px;
+        background: #22c55e;
+        color: white;
+        padding: 12px 20px;
+        border-radius: 8px;
+        z-index: 10000;
+        display: none;
+        box-shadow: 0 4px 12px rgba(0,0,0,0.15);
+    }
+    
+    .custom-toast.success {
+        background: #22c55e;
+    }
+    
+    .custom-toast.error {
+        background: #ef4444;
+    }
+    
+    .alert-custom {
+        padding: 10px 15px;
+        border-radius: 8px;
+        margin-bottom: 15px;
+        display: none;
+    }
+    
+    .alert-custom.danger {
+        background-color: #fee2e2;
+        color: #b91c1c;
+        border: 1px solid #fecaca;
     }
 </style>
 
@@ -167,13 +378,15 @@ $generated_sku = generateSkuForPage($default_type, $db);
                 </div>
                 <div class="col-md-3 mb-3">
                     <label>دسته‌بندی کالا</label>
-                    <select name="category_id" class="form-select">
+                    <select name="category_id" id="categorySelect" class="form-select">
                         <option value="">انتخاب کنید</option>
                         <?php foreach ($categories as $cat): ?>
                             <option value="<?= $cat['id'] ?>"><?= htmlspecialchars($cat['name']) ?></option>
                         <?php endforeach; ?>
                     </select>
-                    <small><a href="categories.php" target="_blank">مدیریت دسته‌بندی‌ها</a></small>
+                    <button type="button" class="btn-add-category" onclick="openCategoryModal()">
+                        <i class="fas fa-plus-circle"></i> افزودن دسته جدید
+                    </button>
                 </div>
                 <div class="col-md-3 mb-3">
                     <label>واحد</label>
@@ -195,7 +408,6 @@ $generated_sku = generateSkuForPage($default_type, $db);
                     <label>محل نگهداری</label>
                     <input type="text" name="storage_location" class="form-control" placeholder="مثال: قفسه A، انبار مرکزی">
                 </div>
-                <!-- فیلد جدید: موجودی اولیه -->
                 <div class="col-md-2 mb-3">
                     <label>موجودی اولیه</label>
                     <input type="number" name="initial_stock" class="form-control" value="0" min="0">
@@ -205,6 +417,36 @@ $generated_sku = generateSkuForPage($default_type, $db);
             <button type="submit" name="submit_new_product" class="btn btn-primary">💾 ثبت کالای جدید</button>
             <a href="products.php" class="btn btn-secondary">🔙 بازگشت</a>
         </form>
+    </div>
+</div>
+
+<!-- مودال سفارشی افزودن دسته‌بندی (بدون بوتاسترپ) -->
+<div id="categoryModal" class="custom-modal">
+    <div class="custom-modal-content">
+        <div class="custom-modal-header">
+            <h4>➕ افزودن دسته‌بندی جدید</h4>
+            <button type="button" class="custom-modal-close" onclick="closeCategoryModal()">&times;</button>
+        </div>
+        <div class="custom-modal-body">
+            <div id="modalAlert" class="alert-custom danger"></div>
+            <div class="form-group-custom">
+                <label>نام دسته *</label>
+                <input type="text" id="catName" class="form-control" placeholder="مثال: قطعات الکترونیکی">
+            </div>
+            <div class="form-group-custom">
+                <label>دسته والد (اختیاری)</label>
+                <select id="catParentId" class="form-select">
+                    <option value="">بدون والد</option>
+                    <?php foreach ($categories as $cat): ?>
+                        <option value="<?= $cat['id'] ?>"><?= htmlspecialchars($cat['name']) ?></option>
+                    <?php endforeach; ?>
+                </select>
+            </div>
+        </div>
+        <div class="custom-modal-footer">
+            <button type="button" class="btn-custom-secondary" onclick="closeCategoryModal()">انصراف</button>
+            <button type="button" class="btn-custom-primary" onclick="saveCategory()">ذخیره دسته</button>
+        </div>
     </div>
 </div>
 
@@ -278,5 +520,83 @@ $(document).ready(function(){
         });
     }
 });
+
+// ========== توابع مودال دسته‌بندی ==========
+function openCategoryModal() {
+    document.getElementById('categoryModal').style.display = 'block';
+    document.getElementById('catName').value = '';
+    document.getElementById('catParentId').value = '';
+    document.getElementById('modalAlert').style.display = 'none';
+}
+
+function closeCategoryModal() {
+    document.getElementById('categoryModal').style.display = 'none';
+}
+
+function saveCategory() {
+    var catName = $('#catName').val().trim();
+    var catParentId = $('#catParentId').val();
+    var modalAlert = $('#modalAlert');
+    
+    if (!catName) {
+        modalAlert.text('لطفاً نام دسته را وارد کنید.').css('display', 'block');
+        return;
+    }
+    
+    $.ajax({
+        url: window.location.href,
+        type: 'POST',
+        data: {
+            add_category_ajax: 1,
+            name: catName,
+            parent_id: catParentId
+        },
+        dataType: 'json',
+        beforeSend: function() {
+            modalAlert.hide();
+        },
+        success: function(response) {
+            if (response.success) {
+                // اضافه کردن گزینه جدید به select دسته‌بندی
+                $('#categorySelect').append('<option value="' + response.id + '" selected>' + escapeHtmlForModal(response.name) + '</option>');
+                closeCategoryModal();
+                showToast('دسته‌بندی با موفقیت اضافه شد', 'success');
+            } else {
+                modalAlert.text(response.error).css('display', 'block');
+            }
+        },
+        error: function() {
+            modalAlert.text('خطا در ارتباط با سرور').css('display', 'block');
+        }
+    });
+}
+
+function escapeHtmlForModal(str) {
+    if(!str) return '';
+    return String(str).replace(/[&<>]/g, function(m) {
+        if(m==='&') return '&amp;';
+        if(m==='<') return '&lt;';
+        if(m==='>') return '&gt;';
+        return m;
+    });
+}
+
+function showToast(message, type) {
+    var toast = $('<div class="custom-toast ' + type + '">' + message + '</div>');
+    $('body').append(toast);
+    toast.fadeIn(300);
+    setTimeout(function() {
+        toast.fadeOut(300, function() { $(this).remove(); });
+    }, 3000);
+}
+
+// بستن مودال با کلیک بیرون از آن
+$(document).mouseup(function(e) {
+    var modal = $('#categoryModal');
+    if (modal.is(':visible') && !$(e.target).closest('.custom-modal-content').length) {
+        modal.hide();
+    }
+});
 </script>
+
 <?php require_once '../../includes/footer.php'; ?>

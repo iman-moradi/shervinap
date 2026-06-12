@@ -1,4 +1,4 @@
-﻿<?php
+<?php
 $page_title = 'پذیرش دستگاه جدید';
 require_once '../../includes/header.php';
 require_once '../../includes/SMSManager.php';
@@ -66,7 +66,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
                 $update = $db->prepare("UPDATE customers SET fullname = ?, address = ? WHERE id = ?");
                 $update->execute([$customer_fullname, $customer_address, $customer_id]);
             } else {
-                $stmt = $db->prepare("INSERT INTO customers (fullname, mobile, address) VALUES (?, ?, ?)");
+                $stmt = $db->prepare("INSERT INTO customers (fullname, mobile, address, type) VALUES (?, ?, ?, 'customer')");
                 $stmt->execute([$customer_fullname, $customer_mobile, $customer_address]);
                 $customer_id = $db->lastInsertId();
             }
@@ -138,6 +138,32 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
 ?>
 
 <style>
+    /* استایل مدرن (هماهنگ با سایر بخش‌ها) */
+    .modern-card .card-body {
+        padding: 2rem !important;
+    }
+    .form-modern .form-control, 
+    .form-modern .form-select,
+    .form-modern textarea {
+        border-radius: 12px;
+        border: 1px solid #e2e8f0;
+        padding: 10px 15px;
+        transition: all 0.2s;
+        width: 100%;
+        box-sizing: border-box;
+    }
+    .form-modern .form-control:focus, 
+    .form-modern .form-select:focus,
+    .form-modern textarea:focus {
+        border-color: #0ea5e9;
+        box-shadow: 0 0 0 3px rgba(14,165,233,0.1);
+    }
+    .form-modern label {
+        font-weight: 500;
+        margin-bottom: 8px;
+        color: #334155;
+        display: block;
+    }
     .suggestions-box {
         position: absolute;
         z-index: 1000;
@@ -150,9 +176,6 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
         display: none;
         box-shadow: 0 4px 12px rgba(0,0,0,0.1);
     }
-    .modern-card .card-body {
-        padding: 2rem !important;
-    }
     .suggestion-item {
         padding: 8px 12px;
         cursor: pointer;
@@ -161,19 +184,6 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
     .suggestion-item:hover {
         background-color: #f1f5f9;
     }
-    .form-modern .form-control, .form-modern .form-select {
-        border-radius: 12px;
-        border: 1px solid #e2e8f0;
-        padding: 10px 15px;
-        width: 100%;
-        box-sizing: border-box;
-    }
-    .form-modern label {
-        font-weight: 500;
-        margin-bottom: 8px;
-        color: #334155;
-        display: block;
-    }
     .row {
         margin-left: 0;
         margin-right: 0;
@@ -181,6 +191,98 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
     [class^="col-"] {
         padding-left: 10px;
         padding-right: 10px;
+    }
+    .btn-modern {
+        background: linear-gradient(135deg, #0ea5e9, #0284c7);
+        border: none;
+        padding: 8px 20px;
+        border-radius: 30px;
+        color: white;
+        transition: all 0.2s;
+    }
+    .btn-modern:hover {
+        transform: translateY(-2px);
+        box-shadow: 0 5px 15px rgba(14,165,233,0.4);
+    }
+    .register-link {
+        display: inline-block;
+        margin-top: 8px;
+        font-size: 0.85rem;
+        cursor: pointer;
+        color: #0ea5e9;
+    }
+    .register-link:hover {
+        text-decoration: underline;
+    }
+    
+    /* ========== استایل پاپ‌آپ سفارشی ========== */
+    .custom-popup-overlay {
+        position: fixed;
+        top: 0;
+        left: 0;
+        width: 100%;
+        height: 100%;
+        background: rgba(0,0,0,0.5);
+        backdrop-filter: blur(4px);
+        z-index: 9999;
+        display: none;
+        justify-content: center;
+        align-items: center;
+    }
+    .custom-popup-container {
+        background: #fff;
+        border-radius: 28px;
+        width: 90%;
+        max-width: 700px;
+        max-height: 90vh;
+        overflow-y: auto;
+        box-shadow: 0 25px 50px -12px rgba(0,0,0,0.25);
+        animation: fadeInScale 0.2s ease;
+    }
+    .custom-popup-header {
+        padding: 1.2rem 1.5rem;
+        border-bottom: 2px solid #0ea5e9;
+        background: #f8fafc;
+        border-radius: 28px 28px 0 0;
+        display: flex;
+        justify-content: space-between;
+        align-items: center;
+    }
+    .custom-popup-header h5 {
+        margin: 0;
+        font-weight: 600;
+        color: #0f172a;
+    }
+    .custom-popup-close {
+        background: none;
+        border: none;
+        font-size: 1.5rem;
+        cursor: pointer;
+        color: #94a3b8;
+        transition: color 0.2s;
+    }
+    .custom-popup-close:hover {
+        color: #ef4444;
+    }
+    .custom-popup-body {
+        padding: 1.5rem;
+    }
+    .custom-popup-footer {
+        padding: 1rem 1.5rem;
+        border-top: 1px solid #e2e8f0;
+        display: flex;
+        justify-content: flex-end;
+        gap: 10px;
+    }
+    @keyframes fadeInScale {
+        from {
+            opacity: 0;
+            transform: scale(0.95);
+        }
+        to {
+            opacity: 1;
+            transform: scale(1);
+        }
     }
 </style>
 
@@ -193,7 +295,6 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
         <?php if ($success): ?><div class="alert alert-success alert-glass"><?= htmlspecialchars($success) ?></div><?php endif; ?>
         
         <form method="post" id="receptionForm" class="form-modern">
-            <!-- فیلد مخفی برای ذخیره تاریخ تحویل تخمینی -->
             <input type="hidden" name="expected_delivery_hidden" id="expected_delivery_hidden" value="">
             
             <h5 class="mb-3"><i class="fas fa-user"></i> اطلاعات مشتری</h5>
@@ -203,7 +304,10 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
                     <input type="text" name="customer_mobile" id="customerMobile" class="form-control" autocomplete="off" required>
                     <input type="hidden" name="customer_id" id="customerId" value="">
                     <div id="mobileSuggestions" class="suggestions-box"></div>
-                    <small class="text-muted">شماره موبایل مشتری را وارد کنید، اگر وجود داشت انتخاب کنید، در غیر این صورت اطلاعات را کامل کنید.</small>
+                    <div id="registerCustomerLink" class="register-link" style="display:none;">
+                        <i class="fas fa-user-plus"></i> مشتری جدید با این شماره ثبت کنید
+                    </div>
+                    <small class="text-muted">شماره موبایل را وارد کنید، اگر وجود داشت انتخاب کنید، در غیر این صورت گزینه ثبت مشتری جدید ظاهر می‌شود.</small>
                 </div>
                 <div class="col-md-4 mb-3">
                     <label>نام کامل</label>
@@ -261,11 +365,184 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
     </div>
 </div>
 
+<!-- پاپ‌آپ سفارشی ثبت مشتری جدید -->
+<div id="customPopup" class="custom-popup-overlay">
+    <div class="custom-popup-container">
+        <div class="custom-popup-header">
+            <h5><i class="fas fa-user-plus"></i> ثبت مشتری جدید</h5>
+            <button type="button" class="custom-popup-close" id="closePopupBtn">&times;</button>
+        </div>
+        <div class="custom-popup-body">
+            <form id="newCustomerForm" class="form-modern">
+                <input type="hidden" name="type" value="customer">
+                <div class="row">
+                    <div class="col-md-12 mb-3">
+                        <label>نام کامل <span class="text-danger">*</span></label>
+                        <input type="text" name="fullname" id="popup_fullname" class="form-control" required>
+                    </div>
+                    <div class="col-md-6 mb-3">
+                        <label>موبایل <span class="text-danger">*</span></label>
+                        <input type="text" name="mobile" id="popup_mobile" class="form-control" dir="ltr" required>
+                    </div>
+                    <div class="col-md-6 mb-3">
+                        <label>تلفن ثابت</label>
+                        <input type="text" name="phone" class="form-control" dir="ltr">
+                    </div>
+                    <div class="col-md-6 mb-3">
+                        <label>ایمیل</label>
+                        <input type="email" name="email" class="form-control" dir="ltr">
+                    </div>
+                    <div class="col-md-6 mb-3 form-check">
+                        <input type="checkbox" name="is_active" class="form-check-input" id="popup_active" checked>
+                        <label class="form-check-label" for="popup_active">فعال</label>
+                    </div>
+                    <div class="col-12 mb-3">
+                        <label>آدرس</label>
+                        <textarea name="address" class="form-control" rows="2"></textarea>
+                    </div>
+                    <div class="col-12 mb-3">
+                        <label>توضیحات</label>
+                        <textarea name="description" class="form-control" rows="2"></textarea>
+                    </div>
+                </div>
+            </form>
+        </div>
+        <div class="custom-popup-footer">
+            <button type="button" class="btn btn-secondary" id="cancelPopupBtn">انصراف</button>
+            <button type="button" class="btn btn-modern" id="saveCustomerBtn">ذخیره مشتری</button>
+        </div>
+    </div>
+</div>
+
 <script>
 $(document).ready(function(){
     var searchTimeout = null;
-    
-    // تابع محاسبه تاریخ تحویل تخمینی با AJAX
+    var currentMobileQuery = '';
+
+    // ========== جستجوی زنده مشتری ==========
+    $('#customerMobile').on('keyup', function() {
+        var query = $(this).val().trim();
+        currentMobileQuery = query;
+        clearTimeout(searchTimeout);
+        if (query.length < 2) {
+            $('#mobileSuggestions').hide();
+            $('#registerCustomerLink').hide();
+            return;
+        }
+        searchTimeout = setTimeout(function() {
+            $.ajax({
+                url: '../../ajax_search.php',
+                type: 'GET',
+                data: { type: 'customer_search', query: query },
+                dataType: 'json',
+                success: function(data) {
+                    if (data.length > 0) {
+                        var html = '';
+                        for (var i=0; i<data.length; i++) {
+                            html += '<div class="suggestion-item" data-id="'+data[i].id+'" data-name="'+escapeHtml(data[i].fullname)+'" data-mobile="'+escapeHtml(data[i].mobile)+'" data-address="'+escapeHtml(data[i].address)+'">';
+                            html += '<strong>'+escapeHtml(data[i].fullname)+'</strong> - '+escapeHtml(data[i].mobile)+'<br>';
+                            html += '<small>'+escapeHtml(data[i].address)+'</small>';
+                            html += '</div>';
+                        }
+                        $('#mobileSuggestions').html(html).show();
+                        $('#registerCustomerLink').hide();
+                    } else {
+                        $('#mobileSuggestions').hide();
+                        if (currentMobileQuery === $('#customerMobile').val().trim() && currentMobileQuery.length >= 2) {
+                            $('#registerCustomerLink').show();
+                        } else {
+                            $('#registerCustomerLink').hide();
+                        }
+                    }
+                },
+                error: function() {
+                    $('#mobileSuggestions').hide();
+                }
+            });
+        }, 300);
+    });
+
+    $(document).on('click', '.suggestion-item', function() {
+        var id = $(this).data('id');
+        var name = $(this).data('name');
+        var mobile = $(this).data('mobile');
+        var address = $(this).data('address');
+        $('#customerId').val(id);
+        $('#customerMobile').val(mobile);
+        $('#customerFullname').val(name);
+        $('#customerAddress').val(address);
+        $('#mobileSuggestions').hide();
+        $('#registerCustomerLink').hide();
+    });
+
+    $(document).click(function(e) {
+        if (!$(e.target).closest('#customerMobile, #mobileSuggestions').length) {
+            $('#mobileSuggestions').hide();
+        }
+    });
+
+    // ========== نمایش و بستن پاپ‌آپ سفارشی ==========
+    function showPopup() {
+        $('#customPopup').fadeIn(200);
+    }
+    function hidePopup() {
+        $('#customPopup').fadeOut(200);
+    }
+
+    $('#registerCustomerLink').on('click', function() {
+        var mobileVal = $('#customerMobile').val().trim();
+        $('#popup_mobile').val(mobileVal);
+        $('#popup_fullname').val('');
+        $('#newCustomerForm')[0].reset();
+        $('#popup_mobile').val(mobileVal);
+        showPopup();
+    });
+
+    $('#closePopupBtn, #cancelPopupBtn').on('click', function() {
+        hidePopup();
+    });
+
+    // کلیک خارج از محتوای پاپ‌آپ (روی overlay) برای بستن
+    $('#customPopup').on('click', function(e) {
+        if ($(e.target).is('#customPopup')) {
+            hidePopup();
+        }
+    });
+
+    // ========== ذخیره مشتری جدید (AJAX) ==========
+    $('#saveCustomerBtn').on('click', function() {
+        var formData = $('#newCustomerForm').serialize();
+        $.ajax({
+            url: '../../modules/customers/add_ajax.php',
+            type: 'POST',
+            data: formData,
+            dataType: 'json',
+            beforeSend: function() {
+                $('#saveCustomerBtn').prop('disabled', true).html('<i class="fas fa-spinner fa-spin"></i> در حال ثبت...');
+            },
+            success: function(res) {
+                if (res.success) {
+                    hidePopup();
+                    $('#customerId').val(res.customer_id);
+                    $('#customerMobile').val(res.mobile);
+                    $('#customerFullname').val(res.fullname);
+                    $('#customerAddress').val(res.address);
+                    alert('✅ مشتری با موفقیت ثبت شد.');
+                } else {
+                    alert('❌ خطا: ' + (res.error || 'ثبت انجام نشد'));
+                }
+            },
+            error: function(xhr) {
+                alert('خطا در ارتباط با سرور');
+                console.log(xhr.responseText);
+            },
+            complete: function() {
+                $('#saveCustomerBtn').prop('disabled', false).html('ذخیره مشتری');
+            }
+        });
+    });
+
+    // ========== محاسبه تاریخ تحویل تخمینی (AJAX) ==========
     function calculateExpectedDelivery() {
         var priority = $('#priority').val();
         var receivedDate = $('#received_date').val();
@@ -302,14 +579,11 @@ $(document).ready(function(){
                         $('#expected_delivery_display').val(response.delivery_date);
                         $('#expected_delivery_hidden').val(response.delivery_date);
                     } else {
-                        console.log('خطای سرور:', response.error);
                         $('#expected_delivery_display').val('خطا: ' + (response.error || 'محاسبه نشد'));
                         $('#expected_delivery_hidden').val('');
                     }
                 },
-                error: function(xhr, status, error) {
-                    console.log('خطای AJAX:', status, error);
-                    console.log('پاسخ سرور:', xhr.responseText);
+                error: function() {
                     $('#expected_delivery_display').val('خطا در ارتباط با سرور');
                     $('#expected_delivery_hidden').val('');
                 }
@@ -320,7 +594,6 @@ $(document).ready(function(){
         }
     }
     
-    // رویدادهای محاسبه تاریخ تحویل
     $('#priority').on('change', function() {
         if ($(this).val() === 'urgent') {
             $('#urgentDiv').show();
@@ -332,76 +605,18 @@ $(document).ready(function(){
         calculateExpectedDelivery();
     });
     
-    $('#received_date').on('change keyup', function() {
-        calculateExpectedDelivery();
-    });
+    $('#received_date').on('change keyup', calculateExpectedDelivery);
+    $('#normal_days').on('change keyup', calculateExpectedDelivery);
+    $('#urgent_deadline').on('change keyup', calculateExpectedDelivery);
     
-    $('#normal_days').on('change keyup', function() {
-        calculateExpectedDelivery();
-    });
-    
-    $('#urgent_deadline').on('change keyup', function() {
-        calculateExpectedDelivery();
-    });
-    
-    // محاسبه اولیه
     calculateExpectedDelivery();
     
-    // جستجوی مشتری
-    $('#customerMobile').on('keyup', function() {
-        var query = $(this).val().trim();
-        clearTimeout(searchTimeout);
-        if (query.length < 2) {
-            $('#mobileSuggestions').hide();
-            return;
-        }
-        searchTimeout = setTimeout(function() {
-            $.ajax({
-                url: '../../ajax_search.php',
-                type: 'GET',
-                data: { type: 'customer_search', query: query },
-                dataType: 'json',
-                success: function(data) {
-                    if (data.length > 0) {
-                        var html = '';
-                        for (var i=0; i<data.length; i++) {
-                            html += '<div class="suggestion-item" data-id="'+data[i].id+'" data-name="'+escapeHtml(data[i].fullname)+'" data-mobile="'+escapeHtml(data[i].mobile)+'" data-address="'+escapeHtml(data[i].address)+'">';
-                            html += '<strong>'+escapeHtml(data[i].fullname)+'</strong> - '+escapeHtml(data[i].mobile)+'<br>';
-                            html += '<small>'+escapeHtml(data[i].address)+'</small>';
-                            html += '</div>';
-                        }
-                        $('#mobileSuggestions').html(html).show();
-                    } else {
-                        $('#mobileSuggestions').hide();
-                    }
-                }
-            });
-        }, 300);
-    });
-    
-    $(document).on('click', '.suggestion-item', function() {
-        var id = $(this).data('id');
-        var name = $(this).data('name');
-        var mobile = $(this).data('mobile');
-        var address = $(this).data('address');
-        $('#customerId').val(id);
-        $('#customerMobile').val(mobile);
-        $('#customerFullname').val(name);
-        $('#customerAddress').val(address);
-        $('#mobileSuggestions').hide();
-    });
-    
-    $(document).click(function(e) {
-        if (!$(e.target).closest('#customerMobile, #mobileSuggestions').length) {
-            $('#mobileSuggestions').hide();
-        }
-    });
-    
+    // ========== اعتبارسنجی ساده فرم ==========
     $('#receptionForm').on('submit', function() {
         var customerId = $('#customerId').val();
         if (!customerId) {
             if ($('#customerFullname').val().trim() === '' || $('#customerMobile').val().trim() === '') {
-                alert('لطفاً نام کامل و موبایل مشتری را وارد کنید.');
+                alert('لطفاً نام کامل و موبایل مشتری را وارد کنید یا از جستجو استفاده نمایید.');
                 return false;
             }
         }
@@ -419,4 +634,5 @@ $(document).ready(function(){
     }
 });
 </script>
+
 <?php require_once '../../includes/footer.php'; ?>

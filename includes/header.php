@@ -1,5 +1,8 @@
 ﻿<?php
-// شروع سشن فقط در صورتی که قبلاً شروع نشده باشد
+/**
+ * هدر اصلی سیستم (شامل سایدبار، استایل‌ها، و چک دسترسی)
+ * توجه: هیچ خروجی قبل از این بلاک نباید وجود داشته باشد
+ */
 if (session_status() === PHP_SESSION_NONE) {
     session_start();
 }
@@ -8,22 +11,28 @@ require_once __DIR__ . '/../config/database.php';
 require_once __DIR__ . '/../config/app.php';
 require_once __DIR__ . '/functions.php';
 
+if (!isset($_SESSION['user_id'])) {
+    header('Location: ' . BASE_URL . 'login.php');
+    exit();
+}
+
 $user_id = $_SESSION['user_id'];
 $user_fullname = $_SESSION['fullname'] ?? 'کاربر';
 
 load_appearance_settings();
 
-// تابع کمکی برای تشخیص صفحه فعال
+/**
+ * تشخیص صفحه فعال (بهبود یافته برای PHP 7)
+ */
 function is_active($url) {
-    $current_url = $_SERVER['REQUEST_URI'];
-    // اگر آدرس دقیق مطابقت داشت
-    if (strpos($current_url, $url) !== false) {
-        return 'active';
-    }
-    return '';
+    $current = $_SERVER['REQUEST_URI'];
+    // حذف پارامترهای GET برای مقایسه دقیق‌تر
+    $current_path = strtok($current, '?');
+    $target_path = strtok($url, '?');
+    return ($current_path === $target_path) ? 'active' : '';
 }
 
-// ساختار منوهای گروه‌بندی شده
+// ساختار منوهای گروه‌بندی شده (با آیکون‌های اصلاحی)
 $menu_groups = [
     'dashboard' => [
         'type' => 'link',
@@ -47,7 +56,8 @@ $menu_groups = [
         'items' => [
             ['title' => 'پذیرش دستگاه', 'url' => BASE_URL . 'modules/reception/index.php', 'icon' => 'fas fa-plus-circle'],
             ['title' => 'آماده تحویل', 'url' => BASE_URL . 'modules/reception/ready_list.php', 'icon' => 'fas fa-check-circle'],
-            ['title' => 'تاریخچه مشتری', 'url' => BASE_URL . 'modules/reception/customer_history.php', 'icon' => 'fas fa-history']
+            ['title' => 'تاریخچه مشتری', 'url' => BASE_URL . 'modules/reception/customer_history.php', 'icon' => 'fas fa-history'],
+            ['title' => 'اجرت‌های عمومی', 'url' => BASE_URL . 'modules/reception/standard_services.php', 'icon' => 'fas fa-cogs'] // اصلاح آیکون
         ]
     ],
     'inventory' => [
@@ -70,7 +80,7 @@ $menu_groups = [
         'title' => '💰 مالی و اعتبارات',
         'permission' => 'transfers_manage',
         'icon' => 'fas fa-money-bill-wave',
-        'items' => []
+        'items' => [] // آیتم‌ها به صورت داینامیک اضافه می‌شوند
     ],
     'accounting' => [
         'type' => 'group',
@@ -81,7 +91,7 @@ $menu_groups = [
             ['title' => 'مدیریت حساب‌ها', 'url' => BASE_URL . 'modules/accounting/accounts.php', 'icon' => 'fas fa-university'],
             ['title' => 'ثبت سند دستی (هزینه/درآمد)', 'url' => BASE_URL . 'modules/accounting/add_transaction.php', 'icon' => 'fas fa-pen-alt'],
             ['title' => 'گزارش گردش حساب', 'url' => BASE_URL . 'modules/accounting/balance_sheet.php', 'icon' => 'fas fa-chart-pie'],
-			['title' => 'گزارش کامل تمام تراکنش‌های مالی', 'url' => BASE_URL . 'modules/accounting/all_transactions.php', 'icon' => 'fas fa-chart-pie'],
+            ['title' => 'گزارش کامل تمام تراکنش‌های مالی', 'url' => BASE_URL . 'modules/accounting/all_transactions.php', 'icon' => 'fas fa-list-alt'], // تغییر آیکون
             ['title' => '🧠 تحلیل هوشمند و پیشنهادات', 'url' => BASE_URL . 'modules/accounting/smart_advice.php', 'icon' => 'fas fa-robot']
         ]
     ],
@@ -99,7 +109,8 @@ $menu_groups = [
         'icon' => 'fas fa-sliders-h',
         'items' => [
             ['title' => 'تنظیمات ظاهری', 'url' => BASE_URL . 'modules/settings/appearance.php', 'icon' => 'fas fa-palette'],
-            ['title' => 'تنظیمات عمومی', 'url' => BASE_URL . 'modules/settings/general.php', 'icon' => 'fas fa-globe']
+            ['title' => 'تنظیمات عمومی', 'url' => BASE_URL . 'modules/settings/general.php', 'icon' => 'fas fa-globe'],
+            ['title' => 'مدیریت دسته‌بندی دستگاه‌ها', 'url' => BASE_URL . 'modules/inventory/categories.php', 'icon' => 'fas fa-tags'] // اصلاح آیکون
         ]
     ],
     'reports' => [
@@ -111,7 +122,7 @@ $menu_groups = [
     ]
 ];
 
-// اضافه کردن آیتم‌های منوی مالی بر اساس دسترسی‌ها
+// اضافه کردن آیتم‌های منوی مالی با آیکون مناسب
 if (has_permission($user_id, 'transfers_manage')) {
     $menu_groups['financial']['items'][] = ['title' => 'انتقال وجه', 'url' => BASE_URL . 'modules/financial/transfer.php', 'icon' => 'fas fa-exchange-alt'];
 }
@@ -124,7 +135,6 @@ if (has_permission($user_id, 'checks_manage')) {
 if (has_permission($user_id, 'credit_sales_manage')) {
     $menu_groups['financial']['items'][] = ['title' => 'فروش نسیه', 'url' => BASE_URL . 'modules/financial/credit_sales.php', 'icon' => 'fas fa-credit-card'];
 }
-// اگر هیچ آیتمی به گروه مالی اضافه نشد، گروه را حذف می‌کنیم
 if (empty($menu_groups['financial']['items'])) {
     unset($menu_groups['financial']);
 }
@@ -139,11 +149,10 @@ if (empty($menu_groups['financial']['items'])) {
     <link rel="stylesheet" href="<?= BASE_URL ?>assets/css/bootstrap.rtl.min.css">
     <link rel="stylesheet" href="<?= BASE_URL ?>assets/css/all.min.css">
     <link rel="stylesheet" href="<?= BASE_URL ?>assets/css/theme.css">
-    <!-- فونت وزیرمتن (اختیاری اما زیبا) -->
-   <link rel="stylesheet" href="<?= BASE_URL ?>assets/css/Vazirmatn-font-face.css">
+    <link rel="stylesheet" href="<?= BASE_URL ?>assets/css/Vazirmatn-font-face.css">
     <script src="<?= BASE_URL ?>assets/js/jquery-3.6.0.min.js"></script>
     <script src="<?= BASE_URL ?>assets/js/bootstrap.bundle.min.js"></script>
-	<script src="<?= BASE_URL ?>assets/js/jalaali.js"></script>
+    <script src="<?= BASE_URL ?>assets/js/jalaali.js"></script>
     <style>
         :root {
             --sidebar-bg: rgba(30, 41, 59, 0.95);
@@ -160,15 +169,12 @@ if (empty($menu_groups['financial']['items'])) {
             --border-radius-lg: 20px;
             --border-radius-md: 12px;
         }
-
         body {
             font-family: 'Vazirmatn', 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
             background: linear-gradient(135deg, #e2e8f0 0%, #f8fafc 100%);
             min-height: 100vh;
             direction: rtl;
         }
-
-        /* استایل مدرن سایدبار (افکت شیشه‌ای) */
         .sidebar {
             min-height: 100vh;
             background: var(--sidebar-bg);
@@ -177,7 +183,6 @@ if (empty($menu_groups['financial']['items'])) {
             box-shadow: 4px 0 20px rgba(0, 0, 0, 0.1);
             transition: var(--transition-smooth);
         }
-
         .navbar-brand-custom {
             font-size: 1.5rem;
             font-weight: 800;
@@ -192,7 +197,6 @@ if (empty($menu_groups['financial']['items'])) {
             background-clip: text;
             color: transparent;
         }
-
         .nav-link {
             color: var(--text-dim) !important;
             padding: 12px 20px !important;
@@ -203,36 +207,30 @@ if (empty($menu_groups['financial']['items'])) {
             display: flex;
             align-items: center;
         }
-
         .nav-link i {
             width: 28px;
             font-size: 1.2rem;
             margin-left: 12px;
             text-align: center;
         }
-
         .nav-link:hover {
             background: var(--hover-bg) !important;
             color: white !important;
             transform: translateX(5px);
         }
-
         .nav-link.active {
             background: var(--primary-color) !important;
             color: white !important;
             box-shadow: 0 4px 10px rgba(14, 165, 233, 0.3);
         }
-
         .dropdown-toggle::after {
             float: left;
             margin-top: 8px;
             transition: transform 0.3s ease;
         }
-
         .dropdown.show .dropdown-toggle::after {
             transform: rotate(180deg);
         }
-
         .dropdown-menu {
             background: rgba(30, 41, 59, 0.98);
             backdrop-filter: blur(12px);
@@ -242,7 +240,6 @@ if (empty($menu_groups['financial']['items'])) {
             padding: 8px 0;
             transition: var(--transition-smooth);
         }
-
         .dropdown-item {
             color: var(--text-dim);
             padding: 10px 24px;
@@ -250,13 +247,11 @@ if (empty($menu_groups['financial']['items'])) {
             margin: 2px 8px;
             transition: var(--transition-smooth);
         }
-
         .dropdown-item:hover {
             background: var(--hover-bg);
             color: white;
             transform: translateX(5px);
         }
-
         .user-info {
             padding: 20px;
             border-top: 1px solid var(--glass-border);
@@ -265,22 +260,17 @@ if (empty($menu_groups['financial']['items'])) {
             color: var(--text-light);
             text-align: center;
         }
-
         .sidebar-wrapper {
             display: flex;
             flex-direction: column;
             height: 100%;
         }
-
-        /* استایل محتوای اصلی (با افکت شیشه‌ای) */
         .content {
             padding: 20px;
             background: rgba(255, 255, 255, 0.4);
             backdrop-filter: blur(5px);
             min-height: 100vh;
         }
-
-        /* کارت‌های مدرن */
         .modern-card {
             background: var(--card-bg);
             backdrop-filter: blur(8px);
@@ -291,20 +281,16 @@ if (empty($menu_groups['financial']['items'])) {
             overflow: hidden;
             height: 100%;
         }
-
         .modern-card:hover {
             transform: translateY(-5px);
             box-shadow: 0 25px 40px -12px rgba(0, 0, 0, 0.2);
         }
-
         .card-header-custom {
             background: rgba(255, 255, 255, 0.7);
             border-bottom: 2px solid var(--primary-color);
             padding: 15px 20px;
             font-weight: bold;
         }
-
-        /* دکمه‌ها */
         .btn-modern {
             background: var(--primary-color);
             border: none;
@@ -313,14 +299,11 @@ if (empty($menu_groups['financial']['items'])) {
             color: white;
             transition: var(--transition-smooth);
         }
-
         .btn-modern:hover {
             background: var(--primary-dark);
             transform: scale(1.02);
             box-shadow: 0 5px 15px rgba(14, 165, 233, 0.4);
         }
-
-        /* هشدارهای زیبا */
         .alert-glass {
             background: rgba(255, 255, 255, 0.9);
             backdrop-filter: blur(10px);
@@ -328,8 +311,6 @@ if (empty($menu_groups['financial']['items'])) {
             border-radius: 15px;
             box-shadow: 0 5px 15px rgba(0, 0, 0, 0.05);
         }
-
-        /* اسکرول بار سفارشی */
         ::-webkit-scrollbar {
             width: 8px;
         }
@@ -362,9 +343,9 @@ if (empty($menu_groups['financial']['items'])) {
                             echo '<li class="nav-item">';
                             echo '<a class="nav-link ' . $active_class . '" href="' . $menu['url'] . '">';
                             echo '<i class="' . $menu['icon'] . '"></i> ' . $menu['title'];
-                            echo '</a>';
-                            echo '</li>';
+                            echo '</a></li>';
                         } elseif ($menu['type'] == 'group') {
+                            // بررسی باز بودن گروه بر اساس URL فعلی
                             $is_open = false;
                             foreach ($menu['items'] as $sub) {
                                 if (strpos($_SERVER['REQUEST_URI'], $sub['url']) !== false) {
@@ -380,7 +361,7 @@ if (empty($menu_groups['financial']['items'])) {
                             foreach ($menu['items'] as $sub) {
                                 $sub_active = is_active($sub['url']);
                                 echo '<li><a class="dropdown-item ' . $sub_active . '" href="' . $sub['url'] . '">';
-                                if (isset($sub['icon'])) echo '<i class="' . $sub['icon'] . ' me-2"></i> ';
+                                if (isset($sub['icon'])) echo '<i class="' . $sub['icon'] . ' ms-2"></i> ';
                                 echo $sub['title'];
                                 echo '</a></li>';
                             }
@@ -410,9 +391,8 @@ if (empty($menu_groups['financial']['items'])) {
             </div>
 
             <?php
-            // ==================== هشدارهای سیستمی ====================
+            // ==================== هشدارهای سیستمی (بهبود یافته با بررسی وجود توابع) ====================
             
-            // 1. هشدار فاکتورهای خرید نسیه
             if (function_exists('get_unpaid_purchase_invoices_count')) {
                 $unpaid_count = get_unpaid_purchase_invoices_count($db);
                 if ($unpaid_count > 0) {
@@ -420,12 +400,11 @@ if (empty($menu_groups['financial']['items'])) {
                             <i class="fas fa-exclamation-triangle"></i> <strong>توجه!</strong> ' . $unpaid_count . ' فاکتور خرید نسیه تسویه نشده وجود دارد. 
                             <a href="' . BASE_URL . 'modules/inventory/purchase_invoices.php?filter=unpaid" class="alert-link">مشاهده و تسویه</a>
                             <button type="button" class="btn-close" data-bs-dismiss="alert" aria-label="Close"></button>
-                          </div>';
+                        </div>';
                 }
             }
 
-            // 2. هشدار اقساط وام (یک هفته مانده به سررسید)
-            if (has_permission($user_id, 'loans_manage')) {
+            if (has_permission($user_id, 'loans_manage') && function_exists('jalali_to_gregorian_timestamp')) {
                 $upcoming_loans = $db->query("SELECT * FROM loans WHERE status='active' AND remaining_amount > 0")->fetchAll();
                 foreach ($upcoming_loans as $l) {
                     $start_timestamp = jalali_to_gregorian_timestamp($l['start_date_sh']);
@@ -442,11 +421,11 @@ if (empty($menu_groups['financial']['items'])) {
                 }
             }
 
-            // 3. هشدار چک‌های سررسید شده
             if (has_permission($user_id, 'checks_manage')) {
                 $today = now_jalali();
-                $checks = $db->query("SELECT * FROM checks WHERE status='pending' AND due_date_sh <= '$today'")->fetchAll();
-                foreach ($checks as $c) {
+                $checks = $db->prepare("SELECT * FROM checks WHERE status='pending' AND due_date_sh <= ?");
+                $checks->execute([$today]);
+                foreach ($checks->fetchAll() as $c) {
                     $type_label = ($c['type'] == 'issued') ? 'پرداختی' : 'دریافتی';
                     $alert_class = ($c['type'] == 'issued') ? 'danger' : 'warning';
                     echo '<div class="alert alert-' . $alert_class . ' alert-glass alert-dismissible fade show shadow-sm" role="alert">
@@ -456,11 +435,11 @@ if (empty($menu_groups['financial']['items'])) {
                 }
             }
 
-            // 4. هشدار فروش نسیه (سررسید گذشته یا امروز)
             if (has_permission($user_id, 'credit_sales_manage')) {
                 $today = now_jalali();
-                $credit_sales = $db->query("SELECT cs.*, c.fullname as customer_name FROM credit_sales cs JOIN customers c ON c.id = cs.customer_id WHERE cs.status != 'paid' AND cs.due_date_sh <= '$today'")->fetchAll();
-                foreach ($credit_sales as $cs) {
+                $credit_sales = $db->prepare("SELECT cs.*, c.fullname as customer_name FROM credit_sales cs JOIN customers c ON c.id = cs.customer_id WHERE cs.status != 'paid' AND cs.due_date_sh <= ?");
+                $credit_sales->execute([$today]);
+                foreach ($credit_sales->fetchAll() as $cs) {
                     $remaining = $cs['total_amount'] - $cs['paid_amount'];
                     echo '<div class="alert alert-warning alert-glass alert-dismissible fade show shadow-sm" role="alert">
                             <i class="fas fa-credit-card"></i> <strong>فروش نسیه</strong> مشتری ' . htmlspecialchars($cs['customer_name']) . ' - فاکتور ' . htmlspecialchars($cs['invoice_no']) . ' به مبلغ باقیمانده ' . number_format($remaining) . ' تومان در تاریخ ' . $cs['due_date_sh'] . ' سررسید شده است.
@@ -469,4 +448,4 @@ if (empty($menu_groups['financial']['items'])) {
                           </div>';
                 }
             }
-            ?>
+?>
